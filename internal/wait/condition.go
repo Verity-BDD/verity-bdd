@@ -1,0 +1,88 @@
+package wait
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/verity-bdd/verity-bdd/internal/core"
+	"github.com/verity-bdd/verity-bdd/internal/expectations/ensure"
+)
+
+const (
+	defaultTimeout  = 5 * time.Second
+	defaultInterval = 500 * time.Millisecond
+)
+
+// ConditionActivity polls question until expectation is met or timeout expires.
+type ConditionActivity[T any] struct {
+	timeout     time.Duration
+	interval    time.Duration
+	question    core.Question[T]
+	expectation ensure.Expectation[T]
+}
+
+// Until creates a ConditionActivity with default timeout (5s) and interval (500ms).
+func Until[T any](question core.Question[T], expectation ensure.Expectation[T]) *ConditionActivity[T] {
+	return &ConditionActivity[T]{
+		timeout:     defaultTimeout,
+		interval:    defaultInterval,
+		question:    question,
+		expectation: expectation,
+	}
+}
+
+// For sets the maximum wait duration. Returns the receiver for chaining.
+func (c *ConditionActivity[T]) For(timeout time.Duration) *ConditionActivity[T] {
+	c.timeout = timeout
+	return c
+}
+
+// CheckingEvery sets the polling interval. Returns the receiver for chaining.
+func (c *ConditionActivity[T]) CheckingEvery(interval time.Duration) *ConditionActivity[T] {
+	c.interval = interval
+	return c
+}
+
+// Description implements core.Activity.
+func (c *ConditionActivity[T]) Description() string {
+	return fmt.Sprintf("wait up to %v for %s", c.timeout, c.question.Description())
+}
+
+// FailureMode implements core.Activity — always FailFast.
+func (c *ConditionActivity[T]) FailureMode() core.FailureMode {
+	return core.FailFast
+}
+
+// PerformAs implements core.Activity. Polls until condition is met or context expires.
+func (c *ConditionActivity[T]) PerformAs(ctx context.Context, actor core.Actor) error {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(c.interval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		actual, err := c.question.AnsweredBy(ctx, actor)
+		if err != nil {
+			lastErr = err
+		} else if evalErr := c.expectation.Evaluate(actual); evalErr != nil {
+			lastErr = evalErr
+		} else {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return fmt.Errorf("timed out after %v waiting for '%s': %w",
+					c.timeout, c.question.Description(), lastErr)
+			}
+			return fmt.Errorf("context cancelled while waiting for '%s': %w",
+				c.question.Description(), lastErr)
+		case <-ticker.C:
+		}
+	}
+}

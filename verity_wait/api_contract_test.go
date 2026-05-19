@@ -1,0 +1,22 @@
+package verity_wait_test
+
+import (
+	"testing"
+	"time"
+
+	answerable "github.com/verity-bdd/verity-bdd/verity_answerable"
+	ve "github.com/verity-bdd/verity-bdd/verity_expectations"
+	vw "github.com/verity-bdd/verity-bdd/verity_wait"
+)
+
+func TestWaitAPIContractCompiles(t *testing.T) {
+	q := answerable.ValueOf("ready")
+	_ = vw.Until(q, ve.Equals("ready"))
+}
+
+func TestWaitAPIContractChainingCompiles(t *testing.T) {
+	q := answerable.ValueOf("ready")
+	_ = vw.Until(q, ve.Equals("ready")).
+		For(30 * time.Second).
+		CheckingEvery(1 * time.Second)
+}
