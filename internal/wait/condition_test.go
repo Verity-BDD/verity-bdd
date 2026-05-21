@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -53,6 +54,20 @@ func (q *errorThenValueQuestion[T]) AnsweredBy(_ context.Context, _ core.Actor) 
 }
 
 func (q *errorThenValueQuestion[T]) Description() string { return "error then value question" }
+
+// signalOnFirstPollQuestion signals via a channel on the first AnsweredBy call, then returns value every time
+type signalOnFirstPollQuestion[T any] struct {
+	value  T
+	polled chan struct{}
+	once   sync.Once
+}
+
+func (q *signalOnFirstPollQuestion[T]) AnsweredBy(_ context.Context, _ core.Actor) (T, error) {
+	q.once.Do(func() { close(q.polled) })
+	return q.value, nil
+}
+
+func (q *signalOnFirstPollQuestion[T]) Description() string { return "signal on first poll" }
 
 func containsAll(s string, subs ...string) bool {
 	for _, sub := range subs {
@@ -125,15 +140,17 @@ func TestUntil_QuestionErrorThenSuccess(t *testing.T) {
 }
 
 func TestUntil_ExternalContextCancellation(t *testing.T) {
-	q := &sequenceQuestion[int]{values: []int{0}}
+	polled := make(chan struct{})
+	q := &signalOnFirstPollQuestion[int]{value: 0, polled: polled}
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	activity := wait.Until(q, expectations.Equals(1)).
 		For(10 * time.Second).
 		CheckingEvery(5 * time.Millisecond)
 
 	go func() {
-		time.Sleep(20 * time.Millisecond)
+		<-polled // wait until at least one poll happened
 		cancel()
 	}()
 
@@ -175,6 +192,47 @@ func TestUntil_Description(t *testing.T) {
 	desc := activity.Description()
 	if !containsAll(desc, "30s", "test question") {
 		t.Fatalf("unexpected description: %q", desc)
+	}
+}
+
+func TestUntil_ContextAlreadyCancelled(t *testing.T) {
+	q := &sequenceQuestion[int]{values: []int{0}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	activity := wait.Until(q, expectations.Equals(1)).
+		For(10 * time.Second)
+
+	err := activity.PerformAs(ctx, &stubActor{})
+
+	if err == nil {
+		t.Fatal("expected error for pre-cancelled context, got nil")
+	}
+	if strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected cancellation error, not timeout: %v", err)
+	}
+	if !strings.Contains(err.Error(), "cancelled") {
+		t.Fatalf("expected error to mention cancellation, got: %v", err)
+	}
+}
+
+func TestUntil_IntervalExceedsTimeout(t *testing.T) {
+	q := &sequenceQuestion[int]{values: []int{0}}
+	// interval (100ms) > timeout (10ms): only one poll should happen before timeout
+	activity := wait.Until(q, expectations.Equals(1)).
+		For(10 * time.Millisecond).
+		CheckingEvery(100 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &stubActor{})
+
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+	if q.idx != 1 {
+		t.Fatalf("expected exactly 1 poll when interval > timeout, got %d", q.idx)
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected timeout error, got: %v", err)
 	}
 }
 
