@@ -5,18 +5,16 @@ import (
 	"time"
 
 	verity "github.com/verity-bdd/verity-bdd"
-	internalensure "github.com/verity-bdd/verity-bdd/internal/expectations/ensure"
 	internalwait "github.com/verity-bdd/verity-bdd/internal/wait"
+	"github.com/verity-bdd/verity-bdd/verity_expectations/ensure"
 )
 
 // Waiter polls a question until an expectation is met or timeout expires.
 // Created by Until(). Configure with For() and CheckingEvery().
 type Waiter[T any] interface {
+	verity.Activity
 	For(time.Duration) Waiter[T]
 	CheckingEvery(time.Duration) Waiter[T]
-	PerformAs(context.Context, verity.Actor) error
-	Description() string
-	FailureMode() verity.FailureMode
 }
 
 type waiterAdapter[T any] struct {
@@ -56,6 +54,6 @@ func (a *waiterAdapter[T]) FailureMode() verity.FailureMode {
 //	    wait.Until(someQuestion, expectations.Equals("ready")).For(30*time.Second),
 //	    wait.Until(someQuestion, expectations.Equals("ready")).For(30*time.Second).CheckingEvery(1*time.Second),
 //	)
-func Until[T any](question verity.Question[T], expectation internalensure.Expectation[T]) Waiter[T] {
+func Until[T any](question verity.Question[T], expectation ensure.Expectation[T]) Waiter[T] {
 	return &waiterAdapter[T]{inner: internalwait.Until(question, expectation)}
 }
