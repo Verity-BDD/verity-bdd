@@ -43,6 +43,49 @@ func (a *waiterAdapter[T]) FailureMode() verity.FailureMode {
 	return a.inner.FailureMode()
 }
 
+// ChannelReceiver waits for a value to arrive on a channel or for timeout.
+// Created by UntilReceived(). Configure timeout with For().
+type ChannelReceiver[T any] interface {
+	verity.Activity
+	For(time.Duration) ChannelReceiver[T]
+}
+
+type channelReceiverAdapter[T any] struct {
+	inner *internalwait.ChannelActivity[T]
+}
+
+func (a *channelReceiverAdapter[T]) For(d time.Duration) ChannelReceiver[T] {
+	a.inner.For(d)
+	return a
+}
+
+func (a *channelReceiverAdapter[T]) PerformAs(ctx context.Context, actor verity.Actor) error {
+	return a.inner.PerformAs(ctx, actor)
+}
+
+func (a *channelReceiverAdapter[T]) Description() string {
+	return a.inner.Description()
+}
+
+func (a *channelReceiverAdapter[T]) FailureMode() verity.FailureMode {
+	return a.inner.FailureMode()
+}
+
+// UntilReceived creates a wait activity that blocks until a value arrives on ch.
+// Default timeout: 5s. Configure with .For().
+// Returns an error if: channel closes before value arrives, or timeout/context expires.
+//
+// Example:
+//
+//	ch := make(chan string)
+//	actor.AttemptsTo(
+//	    wait.UntilReceived(ch),
+//	    wait.UntilReceived(ch).For(30*time.Second),
+//	)
+func UntilReceived[T any](ch <-chan T) ChannelReceiver[T] {
+	return &channelReceiverAdapter[T]{inner: internalwait.UntilReceived(ch)}
+}
+
 // Until creates a wait condition that polls question until expectation is met.
 // Default timeout: 5s. Default polling interval: 500ms.
 // Configure with .For() and .CheckingEvery().

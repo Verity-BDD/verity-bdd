@@ -38,6 +38,57 @@ func TestPublicUntil_ConditionMet(t *testing.T) {
 	}
 }
 
+func TestPublicUntilReceived_ReceivesValue(t *testing.T) {
+	ch := make(chan string, 1)
+	ch <- "event"
+
+	activity := verity_wait.UntilReceived(ch)
+	err := activity.PerformAs(context.Background(), &testActor{})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestPublicUntilReceived_TimeoutWithNoSend(t *testing.T) {
+	ch := make(chan string)
+	activity := verity_wait.UntilReceived(ch).For(50 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &testActor{})
+
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+}
+
+func TestPublicUntilReceived_ClosedChannel(t *testing.T) {
+	ch := make(chan string)
+	close(ch)
+
+	activity := verity_wait.UntilReceived(ch).For(10 * time.Second)
+	err := activity.PerformAs(context.Background(), &testActor{})
+
+	if err == nil {
+		t.Fatal("expected error for closed channel, got nil")
+	}
+}
+
+func TestPublicUntilReceived_ChainedFor(t *testing.T) {
+	ch := make(chan int)
+	start := time.Now()
+	activity := verity_wait.UntilReceived(ch).For(50 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &testActor{})
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+	if elapsed > 1*time.Second {
+		t.Fatalf("For(50ms) did not shorten timeout, elapsed: %v", elapsed)
+	}
+}
+
 func TestPublicUntil_ChainedForAndCheckingEvery(t *testing.T) {
 	q := &staticQuestion[int]{value: 0}
 	activity := verity_wait.Until(q, verity_expectations.Equals(1)).
