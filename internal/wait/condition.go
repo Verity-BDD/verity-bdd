@@ -33,29 +33,29 @@ func Until[T any](question core.Question[T], expectation ensure.Expectation[T]) 
 	}
 }
 
-// For sets the maximum wait duration. Returns the receiver for chaining.
 func (c *ConditionActivity[T]) For(timeout time.Duration) *ConditionActivity[T] {
 	c.timeout = timeout
 	return c
 }
 
-// CheckingEvery sets the polling interval. Returns the receiver for chaining.
 func (c *ConditionActivity[T]) CheckingEvery(interval time.Duration) *ConditionActivity[T] {
 	c.interval = interval
 	return c
 }
 
-// Description implements core.Activity.
 func (c *ConditionActivity[T]) Description() string {
 	return fmt.Sprintf("wait up to %v for %s", c.timeout, c.question.Description())
 }
 
-// FailureMode implements core.Activity — always FailFast.
+// FailureMode always returns FailFast: a wait that silently continues after failing
+// would mask flaky conditions and make test output misleading.
 func (c *ConditionActivity[T]) FailureMode() core.FailureMode {
 	return core.FailFast
 }
 
-// PerformAs implements core.Activity. Polls until condition is met or context expires.
+// PerformAs polls immediately (poll-first, to avoid delay when condition is already met),
+// then re-polls after each interval until expectation is met or timeout/context expires.
+// A pre-cancelled ctx will still execute one poll before the cancellation is detected.
 func (c *ConditionActivity[T]) PerformAs(ctx context.Context, actor core.Actor) error {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()

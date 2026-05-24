@@ -8,20 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/verity-bdd/verity-bdd/internal/abilities"
 	"github.com/verity-bdd/verity-bdd/internal/core"
 	"github.com/verity-bdd/verity-bdd/internal/expectations"
 	"github.com/verity-bdd/verity-bdd/internal/wait"
 )
-
-// stubActor реализует core.Actor для тестов
-type stubActor struct{}
-
-func (s *stubActor) Context() context.Context                                 { return context.Background() }
-func (s *stubActor) Name() string                                             { return "test" }
-func (s *stubActor) WhoCan(_ ...abilities.Ability) core.Actor                 { return s }
-func (s *stubActor) AbilityTo(_ abilities.Ability) (abilities.Ability, error) { return nil, errors.New("no ability") }
-func (s *stubActor) AttemptsTo(_ ...core.Activity)                            {}
 
 // sequenceQuestion returns values in order; stays on the last value when exhausted
 type sequenceQuestion[T any] struct {
@@ -136,6 +126,26 @@ func TestUntil_QuestionErrorThenSuccess(t *testing.T) {
 	}
 	if q.calls != 3 {
 		t.Fatalf("expected 3 calls (2 errors + 1 success), got %d", q.calls)
+	}
+}
+
+func TestUntil_TimeoutWithPersistentQuestionError(t *testing.T) {
+	q := &errorThenValueQuestion[int]{errCount: 1000, value: 0}
+	activity := wait.Until(q, expectations.Equals(0)).
+		For(50 * time.Millisecond).
+		CheckingEvery(5 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &stubActor{})
+
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected timeout error, got: %v", err)
+	}
+	// error must wrap the underlying question error
+	if !strings.Contains(err.Error(), "not ready yet") {
+		t.Fatalf("expected wrapped question error in message, got: %v", err)
 	}
 }
 
