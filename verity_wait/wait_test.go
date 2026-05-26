@@ -8,17 +8,19 @@ import (
 
 	"github.com/verity-bdd/verity-bdd/internal/abilities"
 	"github.com/verity-bdd/verity-bdd/internal/core"
-	"github.com/verity-bdd/verity-bdd/verity_wait"
 	"github.com/verity-bdd/verity-bdd/verity_expectations"
+	"github.com/verity-bdd/verity-bdd/verity_wait"
 )
 
 type testActor struct{}
 
-func (a *testActor) Context() context.Context                                 { return context.Background() }
-func (a *testActor) Name() string                                             { return "test" }
-func (a *testActor) WhoCan(_ ...abilities.Ability) core.Actor                 { return a }
-func (a *testActor) AbilityTo(_ abilities.Ability) (abilities.Ability, error) { return nil, errors.New("no ability") }
-func (a *testActor) AttemptsTo(_ ...core.Activity)                            {}
+func (a *testActor) Context() context.Context                 { return context.Background() }
+func (a *testActor) Name() string                             { return "test" }
+func (a *testActor) WhoCan(_ ...abilities.Ability) core.Actor { return a }
+func (a *testActor) AbilityTo(_ abilities.Ability) (abilities.Ability, error) {
+	return nil, errors.New("no ability")
+}
+func (a *testActor) AttemptsTo(_ ...core.Activity) {}
 
 type staticQuestion[T any] struct{ value T }
 
@@ -28,6 +30,7 @@ func (q *staticQuestion[T]) AnsweredBy(_ context.Context, _ core.Actor) (T, erro
 func (q *staticQuestion[T]) Description() string { return "static value" }
 
 func TestPublicUntil_ConditionMet(t *testing.T) {
+	t.Parallel()
 	q := &staticQuestion[string]{value: "ready"}
 	activity := verity_wait.Until(q, verity_expectations.Equals("ready"))
 
@@ -39,6 +42,7 @@ func TestPublicUntil_ConditionMet(t *testing.T) {
 }
 
 func TestPublicUntilReceived_ReceivesValue(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string, 1)
 	ch <- "event"
 
@@ -51,6 +55,7 @@ func TestPublicUntilReceived_ReceivesValue(t *testing.T) {
 }
 
 func TestPublicUntilReceived_TimeoutWithNoSend(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string)
 	activity := verity_wait.UntilReceived(ch).For(50 * time.Millisecond)
 
@@ -62,6 +67,7 @@ func TestPublicUntilReceived_TimeoutWithNoSend(t *testing.T) {
 }
 
 func TestPublicUntilReceived_ClosedChannel(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string)
 	close(ch)
 
@@ -74,6 +80,7 @@ func TestPublicUntilReceived_ClosedChannel(t *testing.T) {
 }
 
 func TestPublicUntilReceived_ChainedFor(t *testing.T) {
+	t.Parallel()
 	ch := make(chan int)
 	start := time.Now()
 	activity := verity_wait.UntilReceived(ch).For(50 * time.Millisecond)
@@ -90,6 +97,7 @@ func TestPublicUntilReceived_ChainedFor(t *testing.T) {
 }
 
 func TestPublicUntil_ChainedForAndCheckingEvery(t *testing.T) {
+	t.Parallel()
 	q := &staticQuestion[int]{value: 0}
 	activity := verity_wait.Until(q, verity_expectations.Equals(1)).
 		For(50 * time.Millisecond).

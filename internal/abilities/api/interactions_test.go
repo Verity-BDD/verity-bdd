@@ -9,6 +9,7 @@ import (
 )
 
 func TestRequestBuilderAppliesHeadersAndBodies(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("X-One"); got != "1" {
 			t.Fatalf("expected X-One header to be 1, got %s", got)
@@ -46,6 +47,7 @@ func TestRequestBuilderAppliesHeadersAndBodies(t *testing.T) {
 }
 
 func TestRequestBuilderWithSetsBody(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Content-Type") != "" {
 			t.Fatalf("expected no Content-Type set for generic With body")
@@ -74,6 +76,7 @@ func TestRequestBuilderWithSetsBody(t *testing.T) {
 }
 
 func TestRequestActivityWithNilBuilderReturnsError(t *testing.T) {
+	t.Parallel()
 	activity := &RequestActivity{}
 	actor := newStubActor("nil-builder", context.Background())
 
@@ -87,6 +90,7 @@ func TestRequestActivityWithNilBuilderReturnsError(t *testing.T) {
 }
 
 func TestSendRequestPerformAsRequiresAbility(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))

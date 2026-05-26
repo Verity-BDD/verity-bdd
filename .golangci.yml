@@ -14,6 +14,7 @@ linters:
     - ineffassign
     - misspell
     - staticcheck
+    - paralleltest
     - unconvert
     - unused
   settings:
@@ -50,6 +51,9 @@ linters:
       - linters:
           - errcheck
           - gosec
+        path: examples/
+      - linters:
+          - paralleltest
         path: examples/
       - linters:
           - gosec

@@ -8,6 +8,7 @@ import (
 )
 
 func TestReportingAPIContractCompiles(t *testing.T) {
+	t.Parallel()
 	var reporter vr.Reporter = console_reporter.NewConsoleReporter()
 	_ = reporter
 }

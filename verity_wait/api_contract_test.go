@@ -10,21 +10,25 @@ import (
 )
 
 func TestChannelReceiverAPIContractCompiles(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string, 1)
 	_ = vw.UntilReceived(ch)
 }
 
 func TestChannelReceiverChainingCompiles(t *testing.T) {
+	t.Parallel()
 	ch := make(chan int, 1)
 	_ = vw.UntilReceived(ch).For(10 * time.Second)
 }
 
 func TestWaitAPIContractCompiles(t *testing.T) {
+	t.Parallel()
 	q := answerable.ValueOf("ready")
 	_ = vw.Until(q, ve.Equals("ready"))
 }
 
 func TestWaitAPIContractChainingCompiles(t *testing.T) {
+	t.Parallel()
 	q := answerable.ValueOf("ready")
 	_ = vw.Until(q, ve.Equals("ready")).
 		For(30 * time.Second).

@@ -9,6 +9,7 @@ import (
 )
 
 func TestNoJSONPlaceholderDomainInGoSources(t *testing.T) {
+	t.Parallel()
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatalf("runtime.Caller failed")

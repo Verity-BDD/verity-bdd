@@ -18,6 +18,7 @@ func (i helperIfaceImpl) Foo() string { return i.id }
 type helperOtherAbility struct{ abilities.Ability }
 
 func TestAbilityMatchesTypeNilInputs(t *testing.T) {
+	t.Parallel()
 	if abilityMatchesType(nil, nil) {
 		t.Fatalf("expected false for nil inputs")
 	}
@@ -32,6 +33,7 @@ func TestAbilityMatchesTypeNilInputs(t *testing.T) {
 }
 
 func TestAbilityMatchesTypeConcreteToConcrete(t *testing.T) {
+	t.Parallel()
 	ab := &helperOtherAbility{}
 	target := &helperOtherAbility{}
 	if !abilityMatchesType(ab, target) {
@@ -40,6 +42,7 @@ func TestAbilityMatchesTypeConcreteToConcrete(t *testing.T) {
 }
 
 func TestAbilityMatchesTypePointerImplementsInterface(t *testing.T) {
+	t.Parallel()
 	ab := &helperIfaceImpl{id: "ok"}
 	var target helperIfaceAbility
 	if !abilityMatchesType(ab, &target) {
@@ -48,6 +51,7 @@ func TestAbilityMatchesTypePointerImplementsInterface(t *testing.T) {
 }
 
 func TestAbilityMatchesTypeValueImplementsInterface(t *testing.T) {
+	t.Parallel()
 	ab := helperIfaceImpl{id: "ok"}
 	var target helperIfaceAbility
 	if !abilityMatchesType(ab, &target) {
@@ -56,6 +60,7 @@ func TestAbilityMatchesTypeValueImplementsInterface(t *testing.T) {
 }
 
 func TestAbilityMatchesTypePointerInterfaceTarget(t *testing.T) {
+	t.Parallel()
 	ab := &helperIfaceImpl{id: "ok"}
 	var target helperIfaceAbility
 	if !abilityMatchesType(ab, &target) {
@@ -64,6 +69,7 @@ func TestAbilityMatchesTypePointerInterfaceTarget(t *testing.T) {
 }
 
 func TestAbilityMatchesTypeNonMatching(t *testing.T) {
+	t.Parallel()
 	ab := &helperIfaceImpl{id: "ok"}
 	nonMatching := &helperOtherAbility{}
 	if abilityMatchesType(ab, nonMatching) {

@@ -39,6 +39,7 @@ func (sr *stubResult) Attachments() []reporting.Attachment {
 }
 
 func TestConsoleReporterPrintsAttachmentsOnFailure(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	reporter := NewConsoleReporter()
 	reporter.SetOutput(&buf)

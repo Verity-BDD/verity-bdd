@@ -9,6 +9,7 @@ import (
 )
 
 func TestAbilitiesAPIContractCompiles(t *testing.T) {
+	t.Parallel()
 	var _ verity.Ability = api.CallAnApiAt("https://example.com")
 
 	notebook := take_notes.NewNoteBook()

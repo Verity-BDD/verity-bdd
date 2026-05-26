@@ -16,6 +16,7 @@ import (
 )
 
 func TestReportingIntegration(t *testing.T) {
+	t.Parallel()
 	// Capture output
 	var output bytes.Buffer
 	reporter := console_reporter.NewConsoleReporter()
@@ -48,6 +49,7 @@ func TestReportingIntegration(t *testing.T) {
 }
 
 func TestErrorReporting(t *testing.T) {
+	t.Parallel()
 	// Test error reporting by creating a failing test scenario
 	_ = errors.New("placeholder to use errors package") // avoid unused import
 
@@ -79,6 +81,7 @@ func TestErrorReporting(t *testing.T) {
 }
 
 func TestMultipleActorsReporting(t *testing.T) {
+	t.Parallel()
 	// Capture output
 	var output bytes.Buffer
 	reporter := console_reporter.NewConsoleReporter()
@@ -107,6 +110,7 @@ func TestMultipleActorsReporting(t *testing.T) {
 }
 
 func TestComplexWorkflowReporting(t *testing.T) {
+	t.Parallel()
 	// Capture output
 	var output bytes.Buffer
 	reporter := console_reporter.NewConsoleReporter()
@@ -149,6 +153,7 @@ func TestComplexWorkflowReporting(t *testing.T) {
 }
 
 func TestConcurrentActivitiesReporting(t *testing.T) {
+	t.Parallel()
 	// Capture output
 	var output bytes.Buffer
 	reporter := console_reporter.NewConsoleReporter()

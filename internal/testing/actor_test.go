@@ -26,6 +26,7 @@ type ifaceImpl struct{ id string }
 func (i *ifaceImpl) Foo() string { return i.id }
 
 func TestTestActorAttemptsToWithReporting(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -63,6 +64,7 @@ func TestTestActorAttemptsToWithReporting(t *testing.T) {
 }
 
 func TestTestActorAttemptsToWithNestedTaskReporting(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -114,6 +116,7 @@ func TestTestActorAttemptsToWithNestedTaskReporting(t *testing.T) {
 }
 
 func TestTestActorPerformActivityReportsNestedTaskHierarchy(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -163,6 +166,7 @@ func TestTestActorPerformActivityReportsNestedTaskHierarchy(t *testing.T) {
 }
 
 func TestAbilityToReturnsFriendlyError(t *testing.T) {
+	t.Parallel()
 	actor := &testActor{
 		name:      "TestActor",
 		ctx:       context.Background(),
@@ -181,6 +185,7 @@ func TestAbilityToReturnsFriendlyError(t *testing.T) {
 }
 
 func TestAbilityOfReturnsConcreteAbility(t *testing.T) {
+	t.Parallel()
 	first := &dummyAbility{id: "first"}
 	actor := &testActor{
 		name:      "TestActor",
@@ -199,6 +204,7 @@ func TestAbilityOfReturnsConcreteAbility(t *testing.T) {
 }
 
 func TestAbilityOfReturnsFriendlyErrorWhenMissing(t *testing.T) {
+	t.Parallel()
 	actor := &testActor{
 		name:      "TestActor",
 		ctx:       context.Background(),
@@ -217,6 +223,7 @@ func TestAbilityOfReturnsFriendlyErrorWhenMissing(t *testing.T) {
 }
 
 func TestAbilityOfReturnsFirstMatchingAbility(t *testing.T) {
+	t.Parallel()
 	first := &dummyAbility{id: "first"}
 	second := &dummyAbility{id: "second"}
 	actor := &testActor{
@@ -236,6 +243,7 @@ func TestAbilityOfReturnsFirstMatchingAbility(t *testing.T) {
 }
 
 func TestAbilityOfHandlesNilActor(t *testing.T) {
+	t.Parallel()
 	ability, err := core.AbilityOf[*dummyAbility](nil)
 	if err == nil {
 		t.Fatalf("expected error, got ability %+v", ability)
@@ -248,6 +256,7 @@ func TestAbilityOfHandlesNilActor(t *testing.T) {
 }
 
 func TestAbilityOfSupportsInterfaceAbility(t *testing.T) {
+	t.Parallel()
 	impl := &ifaceImpl{id: "ok"}
 	actor := &testActor{
 		name:      "TestActor",
@@ -266,6 +275,7 @@ func TestAbilityOfSupportsInterfaceAbility(t *testing.T) {
 }
 
 func TestAbilityOfReturnsFirstMatchingInterfaceAbility(t *testing.T) {
+	t.Parallel()
 	first := &ifaceImpl{id: "first"}
 	second := &ifaceImpl{id: "second"}
 	actor := &testActor{

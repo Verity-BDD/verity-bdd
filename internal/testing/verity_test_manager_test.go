@@ -22,6 +22,7 @@ type sceneDefaultAbility struct {
 }
 
 func TestNewVerityTest_ConfiguredByScene(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
 	mockReporter := reportingMocks.NewMockReporter(ctrl)
 	mockTestContext := mocks.NewMockTestContext(ctrl)
@@ -60,6 +61,7 @@ func TestNewVerityTest_ConfiguredByScene(t *testing.T) {
 }
 
 func TestSceneDefaultAbilities_AreIsolatedPerActor(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	test := NewVerityTest(t, Scene{
@@ -96,6 +98,7 @@ func TestSceneDefaultAbilities_AreIsolatedPerActor(t *testing.T) {
 }
 
 func TestSceneDefaultAbilities_CanPreFillNotesByActorName(t *testing.T) {
+	t.Parallel()
 	test := NewVerityTest(t, Scene{
 		Context: context.Background(),
 		DefaultAbilities: []DefaultAbilityFactory{
@@ -133,6 +136,7 @@ func TestSceneDefaultAbilities_CanPreFillNotesByActorName(t *testing.T) {
 }
 
 func TestVerityTestWithConsoleReporter(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	// Create a VerityTest with console reporter
 	test := NewVerityTestWithReporter(ctx, t, console_reporter.NewConsoleReporter())
@@ -147,6 +151,7 @@ func TestVerityTestWithConsoleReporter(t *testing.T) {
 }
 
 func TestNewVerityTestUsesConsoleReporter(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	test := NewVerityTestWithContext(ctx, t)
 
@@ -160,6 +165,7 @@ func TestNewVerityTestUsesConsoleReporter(t *testing.T) {
 }
 
 func TestVerityTestLifecycleReporting(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
 	mockReporter := reportingMocks.NewMockReporter(ctrl)
 	mockTestContext := mocks.NewMockTestContext(ctrl)
@@ -186,6 +192,7 @@ func TestVerityTestLifecycleReporting(t *testing.T) {
 }
 
 func TestVerityTestLifecycleReportingFailed(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
 	mockReporter := reportingMocks.NewMockReporter(ctrl)
 	mockTestContext := mocks.NewMockTestContext(ctrl)
@@ -213,6 +220,7 @@ func TestVerityTestLifecycleReportingFailed(t *testing.T) {
 }
 
 func TestVerityTestAddsNotesAttachmentOnShutdown(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
 	mockReporter := reportingMocks.NewMockReporter(ctrl)
 	mockTestContext := mocks.NewMockTestContext(ctrl)
@@ -256,6 +264,7 @@ func TestVerityTestAddsNotesAttachmentOnShutdown(t *testing.T) {
 }
 
 func TestVerityTestAddsNotesAttachmentOnFailure(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
 	mockReporter := reportingMocks.NewMockReporter(ctrl)
 	mockTestContext := mocks.NewMockTestContext(ctrl)
@@ -304,6 +313,7 @@ func TestVerityTestAddsNotesAttachmentOnFailure(t *testing.T) {
 }
 
 func TestNewVerityNames(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	test := NewVerityTest(t, Scene{})

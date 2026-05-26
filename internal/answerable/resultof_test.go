@@ -12,9 +12,11 @@ import (
 )
 
 func TestResultOf_BasicFunctionality(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	t.Run("successful function execution", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("test value", func(ctx context.Context, actor core.Actor) (int, error) {
 			return 42, nil
 		})
@@ -30,6 +32,7 @@ func TestResultOf_BasicFunctionality(t *testing.T) {
 	})
 
 	t.Run("function returns error", func(t *testing.T) {
+		t.Parallel()
 		testErr := errors.New("function error")
 		q := ResultOf("failing operation", func(ctx context.Context, actor core.Actor) (string, error) {
 			return "", testErr
@@ -42,6 +45,7 @@ func TestResultOf_BasicFunctionality(t *testing.T) {
 	})
 
 	t.Run("function with different types", func(t *testing.T) {
+		t.Parallel()
 		// Test string result
 		q1 := ResultOf("string value", func(ctx context.Context, actor core.Actor) (string, error) {
 			return "hello", nil
@@ -81,9 +85,11 @@ func TestResultOf_BasicFunctionality(t *testing.T) {
 }
 
 func TestResultOf_ActorParameterUsage(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	t.Run("function uses actor name", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("actor greeting", func(ctx context.Context, actor core.Actor) (string, error) {
 			return "Hello, " + actor.Name(), nil
 		})
@@ -94,6 +100,7 @@ func TestResultOf_ActorParameterUsage(t *testing.T) {
 	})
 
 	t.Run("different actors produce different results", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("actor name", func(ctx context.Context, actor core.Actor) (string, error) {
 			return actor.Name(), nil
 		})
@@ -112,9 +119,11 @@ func TestResultOf_ActorParameterUsage(t *testing.T) {
 }
 
 func TestResultOf_ErrorHandling(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	t.Run("standard error", func(t *testing.T) {
+		t.Parallel()
 		testErr := errors.New("standard error")
 		q := ResultOf("error operation", func(ctx context.Context, actor core.Actor) (int, error) {
 			return 0, testErr
@@ -127,6 +136,7 @@ func TestResultOf_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("wrapped error", func(t *testing.T) {
+		t.Parallel()
 		wrappedErr := errors.New("wrapped error")
 		q := ResultOf("wrapped operation", func(ctx context.Context, actor core.Actor) (string, error) {
 			return "", wrappedErr
@@ -139,6 +149,7 @@ func TestResultOf_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("nil error with value", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("successful operation", func(ctx context.Context, actor core.Actor) (int, error) {
 			return 100, nil
 		})
@@ -150,9 +161,11 @@ func TestResultOf_ErrorHandling(t *testing.T) {
 }
 
 func TestResultOf_ComplexOperations(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	t.Run("calculations", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("sum calculation", func(ctx context.Context, actor core.Actor) (int, error) {
 			a, b := 10, 20
 			return a + b, nil
@@ -164,6 +177,7 @@ func TestResultOf_ComplexOperations(t *testing.T) {
 	})
 
 	t.Run("slice operations", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("slice processing", func(ctx context.Context, actor core.Actor) ([]int, error) {
 			input := []int{1, 2, 3, 4, 5}
 			var result []int
@@ -181,6 +195,7 @@ func TestResultOf_ComplexOperations(t *testing.T) {
 	})
 
 	t.Run("map operations", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("map transformation", func(ctx context.Context, actor core.Actor) (map[string]int, error) {
 			input := map[string]int{"a": 1, "b": 2, "c": 3}
 			result := make(map[string]int)
@@ -198,6 +213,7 @@ func TestResultOf_ComplexOperations(t *testing.T) {
 }
 
 func TestResultOf_DescriptionConsistency(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	descriptions := []string{
@@ -212,6 +228,7 @@ func TestResultOf_DescriptionConsistency(t *testing.T) {
 
 	for _, desc := range descriptions {
 		t.Run("description: "+desc, func(t *testing.T) {
+			t.Parallel()
 			q := ResultOf(desc, func(ctx context.Context, actor core.Actor) (int, error) {
 				return 1, nil
 			})
@@ -228,9 +245,11 @@ func TestResultOf_DescriptionConsistency(t *testing.T) {
 }
 
 func TestResultOf_GenericTypeInference(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	t.Run("integer type inference", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("integer", func(ctx context.Context, actor core.Actor) (int, error) {
 			return 42, nil
 		})
@@ -242,6 +261,7 @@ func TestResultOf_GenericTypeInference(t *testing.T) {
 	})
 
 	t.Run("string type inference", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("string", func(ctx context.Context, actor core.Actor) (string, error) {
 			return "hello", nil
 		})
@@ -253,6 +273,7 @@ func TestResultOf_GenericTypeInference(t *testing.T) {
 	})
 
 	t.Run("pointer type inference", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("pointer", func(ctx context.Context, actor core.Actor) (*string, error) {
 			s := "hello pointer"
 			return &s, nil
@@ -267,9 +288,11 @@ func TestResultOf_GenericTypeInference(t *testing.T) {
 }
 
 func TestResultOf_EdgeCases(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	t.Run("empty description", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("", func(ctx context.Context, actor core.Actor) (int, error) {
 			return 1, nil
 		})
@@ -281,6 +304,7 @@ func TestResultOf_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("nil function parameter", func(t *testing.T) {
+		t.Parallel()
 		// This should panic if we don't handle nil, but let's see what happens
 		require.Panics(t, func() {
 			var nilFunc func(context.Context, core.Actor) (int, error) = nil
@@ -289,6 +313,7 @@ func TestResultOf_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("function that returns nil", func(t *testing.T) {
+		t.Parallel()
 		q := ResultOf("nil result", func(ctx context.Context, actor core.Actor) (*TestUser, error) {
 			return nil, nil
 		})
@@ -301,6 +326,7 @@ func TestResultOf_EdgeCases(t *testing.T) {
 
 // Integration test to ensure ResultOf works with the broader ecosystem
 func TestResultOf_IntegrationWithQuestionInterface(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	// Test that ResultOf creates a proper Question[T]
@@ -322,9 +348,11 @@ func TestResultOf_IntegrationWithQuestionInterface(t *testing.T) {
 
 // Test to demonstrate usage patterns
 func TestResultOf_UsageExamples(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	t.Run("computation example", func(t *testing.T) {
+		t.Parallel()
 		// Example: computing something complex
 		q := ResultOf("user age category", func(ctx context.Context, actor core.Actor) (string, error) {
 			age := 25
@@ -345,6 +373,7 @@ func TestResultOf_UsageExamples(t *testing.T) {
 	})
 
 	t.Run("data transformation example", func(t *testing.T) {
+		t.Parallel()
 		// Example: transforming data
 		q := ResultOf("uppercase words", func(ctx context.Context, actor core.Actor) ([]string, error) {
 			words := []string{"hello", "world", "golang"}

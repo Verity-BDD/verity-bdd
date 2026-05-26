@@ -9,6 +9,7 @@ import (
 )
 
 func TestQuestionsErrorWhenNoResponse(t *testing.T) {
+	t.Parallel()
 	ab := Using(http.DefaultClient)
 	actor := newStubActor("no-response", context.Background(), ab)
 
@@ -24,6 +25,7 @@ func TestQuestionsErrorWhenNoResponse(t *testing.T) {
 }
 
 func TestLastResponseBodyCanBeReadMultipleTimes(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("hello"))
 	}))
@@ -57,6 +59,7 @@ func TestLastResponseBodyCanBeReadMultipleTimes(t *testing.T) {
 }
 
 func TestResponseBodyAsJSON(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/ok":
@@ -102,6 +105,7 @@ func TestResponseBodyAsJSON(t *testing.T) {
 }
 
 func TestJSONPathTraversal(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"user":{"emails":["a@example.com","b@example.com"]},"items":[{"id":1},{"id":2}]}`))
 	}))

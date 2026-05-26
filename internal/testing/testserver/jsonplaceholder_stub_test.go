@@ -9,6 +9,7 @@ import (
 )
 
 func TestJSONPlaceholderStubSupportsRequiredEndpoints(t *testing.T) {
+	t.Parallel()
 	baseURL := StartJSONPlaceholderStub(t)
 
 	assertStatusAndBodyContains(t, http.MethodGet, baseURL+"/posts", nil, http.StatusOK, "title")
