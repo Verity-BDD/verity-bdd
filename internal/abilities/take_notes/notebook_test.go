@@ -9,6 +9,7 @@ import (
 )
 
 func TestNoteBookStoresAndRetrievesValues(t *testing.T) {
+	t.Parallel()
 	noteBook := take_notes.NewNoteBook()
 
 	noteBook.Set("greeting", "hello")
@@ -32,6 +33,7 @@ func TestNoteBookStoresAndRetrievesValues(t *testing.T) {
 }
 
 func TestNoteBookOverwritesValues(t *testing.T) {
+	t.Parallel()
 	noteBook := take_notes.NewNoteBook()
 
 	noteBook.Set("key", "first")
@@ -47,6 +49,7 @@ func TestNoteBookOverwritesValues(t *testing.T) {
 }
 
 func TestNoteBookReturnsErrorWhenMissing(t *testing.T) {
+	t.Parallel()
 	noteBook := take_notes.NewNoteBook()
 
 	_, err := noteBook.Get("missing")
@@ -56,6 +59,7 @@ func TestNoteBookReturnsErrorWhenMissing(t *testing.T) {
 }
 
 func TestNoteBookAllReturnsCopy(t *testing.T) {
+	t.Parallel()
 	noteBook := take_notes.NewNoteBook()
 	noteBook.Set("k1", "v1")
 	noteBook.Set("k2", "v2")
@@ -70,6 +74,7 @@ func TestNoteBookAllReturnsCopy(t *testing.T) {
 }
 
 func TestNoteBookIsConcurrentSafe(t *testing.T) {
+	t.Parallel()
 	noteBook := take_notes.NewNoteBook()
 	count := 200
 	wg := sync.WaitGroup{}
@@ -97,6 +102,7 @@ func TestNoteBookIsConcurrentSafe(t *testing.T) {
 }
 
 func TestUsingEmptyNotepadCreatesEmptyAbility(t *testing.T) {
+	t.Parallel()
 	ability := take_notes.UsingEmptyNotepad()
 
 	takeNotesAbility, ok := ability.(*take_notes.TakeNotesAbility)
@@ -111,6 +117,7 @@ func TestUsingEmptyNotepadCreatesEmptyAbility(t *testing.T) {
 }
 
 func TestUsingReusesProvidedNotepad(t *testing.T) {
+	t.Parallel()
 	notepad := take_notes.NewNoteBook()
 	notepad.Set("token", "abc")
 
@@ -134,6 +141,7 @@ func TestUsingReusesProvidedNotepad(t *testing.T) {
 }
 
 func TestNotepadWithCopiesInitialValues(t *testing.T) {
+	t.Parallel()
 	initial := map[string]any{
 		"firstName": "Sam",
 		"count":     1,

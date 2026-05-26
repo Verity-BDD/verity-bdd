@@ -55,7 +55,7 @@ func (c *ConditionActivity[T]) FailureMode() core.FailureMode {
 
 // PerformAs polls immediately (poll-first, to avoid delay when condition is already met),
 // then re-polls after each interval until expectation is met or timeout/context expires.
-// A pre-cancelled ctx will still execute one poll before the cancellation is detected.
+// A pre-canceled ctx will still execute one poll before the cancellation is detected.
 func (c *ConditionActivity[T]) PerformAs(ctx context.Context, actor core.Actor) error {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
@@ -80,7 +80,7 @@ func (c *ConditionActivity[T]) PerformAs(ctx context.Context, actor core.Actor) 
 				return fmt.Errorf("timed out after %v waiting for '%s': %w",
 					c.timeout, c.question.Description(), lastErr)
 			}
-			return fmt.Errorf("context cancelled while waiting for '%s': %w",
+			return fmt.Errorf("context canceled while waiting for '%s': %w",
 				c.question.Description(), lastErr)
 		case <-ticker.C:
 		}

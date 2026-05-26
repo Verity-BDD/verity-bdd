@@ -47,6 +47,7 @@ func (a *stubActor) AttemptsTo(activities ...core.Activity) {
 }
 
 func TestSendRequestStoresLastResponse(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte("ok"))
@@ -77,6 +78,7 @@ func TestSendRequestStoresLastResponse(t *testing.T) {
 }
 
 func TestSendRequestResolvesRelativeURLWithBase(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/hello" {
 			t.Fatalf("expected path /hello, got %s", r.URL.Path)
@@ -103,6 +105,7 @@ func TestSendRequestResolvesRelativeURLWithBase(t *testing.T) {
 }
 
 func TestCallAnApiAtResolvesRelativeURL(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/path" {
 			t.Fatalf("expected path /path, got %s", r.URL.Path)
@@ -125,6 +128,7 @@ func TestCallAnApiAtResolvesRelativeURL(t *testing.T) {
 }
 
 func TestSetBaseURLRejectsInvalidURL(t *testing.T) {
+	t.Parallel()
 	ab := Using(http.DefaultClient)
 	if err := ab.SetBaseURL("example.com"); err == nil {
 		t.Fatalf("expected error for base URL without scheme")
@@ -132,6 +136,7 @@ func TestSetBaseURLRejectsInvalidURL(t *testing.T) {
 }
 
 func TestCallAnApiAtPanicsOnInvalidBaseURL(t *testing.T) {
+	t.Parallel()
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatalf("expected panic for invalid base URL")
@@ -142,6 +147,7 @@ func TestCallAnApiAtPanicsOnInvalidBaseURL(t *testing.T) {
 }
 
 func TestLastResponseIsSafeForConcurrentSendRequest(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 		_, _ = w.Write([]byte("ok"))

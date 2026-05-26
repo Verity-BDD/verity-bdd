@@ -49,6 +49,6 @@ func (c *ChannelActivity[T]) PerformAs(ctx context.Context, _ core.Actor) error 
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return fmt.Errorf("timed out after %v waiting to receive from channel", c.timeout)
 		}
-		return fmt.Errorf("context cancelled while waiting to receive from channel")
+		return fmt.Errorf("context canceled while waiting to receive from channel")
 	}
 }

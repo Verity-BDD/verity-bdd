@@ -31,6 +31,7 @@ func (s *stubActor) AbilityTo(_ abilities.Ability) (abilities.Ability, error) {
 func (s *stubActor) AttemptsTo(_ ...Activity) {}
 
 func TestAbilityNameStripsPointer(t *testing.T) {
+	t.Parallel()
 	ab := &testAbility{}
 	if got := AbilityName(ab); got != "core.testAbility" {
 		t.Fatalf("expected core.testAbility, got %s", got)
@@ -38,12 +39,14 @@ func TestAbilityNameStripsPointer(t *testing.T) {
 }
 
 func TestAbilityNameHandlesNil(t *testing.T) {
+	t.Parallel()
 	if got := AbilityName(nil); got != "<nil>" {
 		t.Fatalf("expected <nil>, got %s", got)
 	}
 }
 
 func TestAbilityOfSuccess(t *testing.T) {
+	t.Parallel()
 	wanted := &testAbility{id: "ok"}
 	actor := &stubActor{name: "A", abilityToResp: wanted}
 
@@ -57,6 +60,7 @@ func TestAbilityOfSuccess(t *testing.T) {
 }
 
 func TestAbilityOfNilActor(t *testing.T) {
+	t.Parallel()
 	_, err := AbilityOf[*testAbility](nil)
 	expected := "actor is nil; cannot get core.testAbility ability"
 	if err == nil || err.Error() != expected {
@@ -65,6 +69,7 @@ func TestAbilityOfNilActor(t *testing.T) {
 }
 
 func TestAbilityOfPropagatesFriendlyMessageOnMissing(t *testing.T) {
+	t.Parallel()
 	actor := &stubActor{name: "A", abilityErr: errors.New("missing")}
 	_, err := AbilityOf[*testAbility](actor)
 	expected := "actor 'A' can't core.testAbility. Did you give them the ability?"
@@ -74,6 +79,7 @@ func TestAbilityOfPropagatesFriendlyMessageOnMissing(t *testing.T) {
 }
 
 func TestAbilityOfDetectsTypeMismatch(t *testing.T) {
+	t.Parallel()
 	actor := &stubActor{name: "A", abilityToResp: &otherAbility{}}
 	_, err := AbilityOf[*testAbility](actor)
 	expected := "actor 'A' returned ability of wrong type (got core.otherAbility, want core.testAbility)"

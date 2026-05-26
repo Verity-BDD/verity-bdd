@@ -8,6 +8,7 @@ import (
 )
 
 func TestNoteQuestionReturnsTypedValue(t *testing.T) {
+	t.Parallel()
 	ability := take_notes.UsingEmptyNotepad()
 	ability.(*take_notes.TakeNotesAbility).Set("name", "verity")
 	actor := newStubActor("reader", context.Background(), ability)
@@ -22,6 +23,7 @@ func TestNoteQuestionReturnsTypedValue(t *testing.T) {
 }
 
 func TestNoteQuestionErrorsWhenMissing(t *testing.T) {
+	t.Parallel()
 	actor := newStubActor("reader", context.Background(), take_notes.UsingEmptyNotepad())
 
 	_, err := take_notes.Note[string]("missing").AnsweredBy(context.Background(), actor)
@@ -31,6 +33,7 @@ func TestNoteQuestionErrorsWhenMissing(t *testing.T) {
 }
 
 func TestNoteQuestionErrorsWhenNoAbility(t *testing.T) {
+	t.Parallel()
 	actor := newStubActor("reader", context.Background())
 
 	_, err := take_notes.Note[string]("missing").AnsweredBy(context.Background(), actor)
@@ -40,6 +43,7 @@ func TestNoteQuestionErrorsWhenNoAbility(t *testing.T) {
 }
 
 func TestNoteQuestionErrorsOnAbilityTypeMismatch(t *testing.T) {
+	t.Parallel()
 	actor := newStubActor("reader", context.Background(), &dummyAbility{})
 
 	_, err := take_notes.Note[string]("missing").AnsweredBy(context.Background(), actor)
@@ -49,6 +53,7 @@ func TestNoteQuestionErrorsOnAbilityTypeMismatch(t *testing.T) {
 }
 
 func TestNoteQuestionErrorsOnTypeMismatch(t *testing.T) {
+	t.Parallel()
 	ability := take_notes.UsingEmptyNotepad()
 	ability.(*take_notes.TakeNotesAbility).Set("count", 123)
 	actor := newStubActor("reader", context.Background(), ability)
@@ -60,6 +65,7 @@ func TestNoteQuestionErrorsOnTypeMismatch(t *testing.T) {
 }
 
 func TestNoteValueReturnsUntyped(t *testing.T) {
+	t.Parallel()
 	ability := take_notes.UsingEmptyNotepad()
 	ability.(*take_notes.TakeNotesAbility).Set("count", 321)
 	actor := newStubActor("reader", context.Background(), ability)

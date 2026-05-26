@@ -12,6 +12,7 @@ import (
 
 // TestChannelActivity_ReceivesValue: send message to buffered channel before PerformAs → returns nil
 func TestChannelActivity_ReceivesValue(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string, 1)
 	ch <- "hello"
 
@@ -25,6 +26,7 @@ func TestChannelActivity_ReceivesValue(t *testing.T) {
 
 // TestChannelActivity_TimeoutWithNoSend: For(60ms), nobody sends → error contains "timed out after"
 func TestChannelActivity_TimeoutWithNoSend(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string)
 	activity := wait.UntilReceived(ch).For(60 * time.Millisecond)
 
@@ -38,8 +40,9 @@ func TestChannelActivity_TimeoutWithNoSend(t *testing.T) {
 	}
 }
 
-// TestChannelActivity_ContextCancelledBeforeSend: cancel ctx before sending → error contains "cancelled" but NOT "timed out"
-func TestChannelActivity_ContextCancelledBeforeSend(t *testing.T) {
+// TestChannelActivity_ContextCanceledBeforeSend: cancel ctx before sending → error contains "canceled" but NOT "timed out"
+func TestChannelActivity_ContextCanceledBeforeSend(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string)
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -59,13 +62,14 @@ func TestChannelActivity_ContextCancelledBeforeSend(t *testing.T) {
 	if strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("expected cancellation error, not timeout: %v", err)
 	}
-	if !strings.Contains(err.Error(), "cancelled") {
+	if !strings.Contains(err.Error(), "canceled") {
 		t.Fatalf("expected error to mention cancellation, got: %v", err)
 	}
 }
 
-// TestChannelActivity_ContextAlreadyCancelledOnEntry: pre-cancelled ctx passed in → error contains "cancelled"
-func TestChannelActivity_ContextAlreadyCancelledOnEntry(t *testing.T) {
+// TestChannelActivity_ContextAlreadyCanceledOnEntry: pre-canceled ctx passed in → error contains "canceled"
+func TestChannelActivity_ContextAlreadyCanceledOnEntry(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel before calling PerformAs
@@ -74,15 +78,16 @@ func TestChannelActivity_ContextAlreadyCancelledOnEntry(t *testing.T) {
 	err := activity.PerformAs(ctx, &stubActor{})
 
 	if err == nil {
-		t.Fatal("expected error for pre-cancelled context, got nil")
+		t.Fatal("expected error for pre-canceled context, got nil")
 	}
-	if !strings.Contains(err.Error(), "cancelled") {
+	if !strings.Contains(err.Error(), "canceled") {
 		t.Fatalf("expected error to mention cancellation, got: %v", err)
 	}
 }
 
 // TestChannelActivity_ClosedChannelReturnsError: close channel, use For(10s) to avoid race with timeout → error contains "channel closed"
 func TestChannelActivity_ClosedChannelReturnsError(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string)
 	close(ch)
 
@@ -99,6 +104,7 @@ func TestChannelActivity_ClosedChannelReturnsError(t *testing.T) {
 
 // TestChannelActivity_ForOverridesDefaultTimeout: For(60ms) terminates well under 1s
 func TestChannelActivity_ForOverridesDefaultTimeout(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string)
 	start := time.Now()
 
@@ -113,6 +119,7 @@ func TestChannelActivity_ForOverridesDefaultTimeout(t *testing.T) {
 
 // TestChannelActivity_Description: Description() contains the timeout duration
 func TestChannelActivity_Description(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string)
 	activity := wait.UntilReceived(ch).For(30 * time.Second)
 
@@ -124,6 +131,7 @@ func TestChannelActivity_Description(t *testing.T) {
 
 // TestChannelActivity_FailureMode: FailureMode() returns core.FailFast
 func TestChannelActivity_FailureMode(t *testing.T) {
+	t.Parallel()
 	ch := make(chan string)
 	activity := wait.UntilReceived(ch)
 
@@ -134,6 +142,7 @@ func TestChannelActivity_FailureMode(t *testing.T) {
 
 // TestChannelActivity_BufferedChannelAlreadyHasValue: buffered channel with value already in it → returns immediately without blocking
 func TestChannelActivity_BufferedChannelAlreadyHasValue(t *testing.T) {
+	t.Parallel()
 	ch := make(chan int, 1)
 	ch <- 42
 

@@ -46,6 +46,7 @@ func (a *stubActor) AbilityTo(target abilities.Ability) (abilities.Ability, erro
 func (a *stubActor) AttemptsTo(activities ...core.Activity) {}
 
 func TestTakeNoteStoresValue(t *testing.T) {
+	t.Parallel()
 	ability := take_notes.UsingEmptyNotepad()
 	actor := newStubActor("alice", context.Background(), ability)
 
@@ -74,6 +75,7 @@ func TestTakeNoteStoresValue(t *testing.T) {
 }
 
 func TestTakeNoteRequiresAbility(t *testing.T) {
+	t.Parallel()
 	actor := newStubActor("bob", context.Background())
 
 	activity := take_notes.TakeNoteOf("value").As("missing")
@@ -91,6 +93,7 @@ type dummyAbility struct{}
 func (d *dummyAbility) String() string { return "dummy" }
 
 func TestTakeNoteReportsStep(t *testing.T) {
+	t.Parallel()
 	ctrl := gomock.NewController(t)
 	reporter := mocks.NewMockReporter(ctrl)
 
@@ -113,6 +116,7 @@ func TestTakeNoteReportsStep(t *testing.T) {
 }
 
 func TestTakeNoteErrorsWhenAbilityTypeMismatch(t *testing.T) {
+	t.Parallel()
 	actor := newStubActor("mike", context.Background(), &dummyAbility{})
 
 	activity := take_notes.TakeNoteOf("value").As("k")

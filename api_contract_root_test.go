@@ -8,6 +8,7 @@ import (
 )
 
 func TestRootAPIContractCompiles(t *testing.T) {
+	t.Parallel()
 	var _ verity.Activity = verity.Do("noop", func(ctx context.Context, actor verity.Actor) error {
 		return nil
 	})

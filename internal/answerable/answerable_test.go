@@ -43,6 +43,7 @@ type TestUser struct {
 }
 
 func TestValueOf_BasicTypes(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	tests := []struct {
@@ -59,6 +60,7 @@ func TestValueOf_BasicTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			q := ValueOf(tt.value)
 
 			// Test AnsweredBy
@@ -75,6 +77,7 @@ func TestValueOf_BasicTypes(t *testing.T) {
 }
 
 func TestValueOf_ErrorType(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	tests := []struct {
@@ -89,6 +92,7 @@ func TestValueOf_ErrorType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			q := ValueOf(tt.err)
 
 			// Test AnsweredBy - error should be returned as value, not as error
@@ -106,6 +110,7 @@ func TestValueOf_ErrorType(t *testing.T) {
 }
 
 func TestValueOf_ComplexTypes(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	user := TestUser{Name: "John", Age: 30}
@@ -121,6 +126,7 @@ func TestValueOf_ComplexTypes(t *testing.T) {
 }
 
 func TestValueOf_PointersAndNil(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	// Test with pointer to value
@@ -149,6 +155,7 @@ func TestValueOf_PointersAndNil(t *testing.T) {
 }
 
 func TestValueOf_SlicesAndMaps(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	// Slice
@@ -177,6 +184,7 @@ func TestValueOf_SlicesAndMaps(t *testing.T) {
 }
 
 func TestValueOf_GenericTypeInference(t *testing.T) {
+	t.Parallel()
 	actor := &mockActor{name: "TestActor"}
 
 	// Test that generic type inference works correctly
@@ -204,6 +212,7 @@ func TestValueOf_GenericTypeInference(t *testing.T) {
 }
 
 func TestValueOf_DescriptionFormats(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		value    any
@@ -218,6 +227,7 @@ func TestValueOf_DescriptionFormats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			q := ValueOf(tt.value)
 			desc := q.Description()
 			require.Equal(t, tt.expected, desc)
@@ -227,6 +237,7 @@ func TestValueOf_DescriptionFormats(t *testing.T) {
 
 // Integration test with ensure.That (if available)
 func TestValueOf_IntegrationWithEnsure(t *testing.T) {
+	t.Parallel()
 	// This test demonstrates the intended usage pattern
 	// Note: This would require importing expectations/ensure, but for now
 	// we'll test that our Question interface works correctly
@@ -254,6 +265,7 @@ func TestValueOf_IntegrationWithEnsure(t *testing.T) {
 }
 
 func TestIsError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		value    any
@@ -269,6 +281,7 @@ func TestIsError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := isError(tt.value)
 			require.Equal(t, tt.expected, result)
 		})

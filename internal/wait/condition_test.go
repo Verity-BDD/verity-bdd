@@ -69,6 +69,7 @@ func containsAll(s string, subs ...string) bool {
 }
 
 func TestUntil_ConditionMetImmediately(t *testing.T) {
+	t.Parallel()
 	q := &sequenceQuestion[int]{values: []int{42}}
 	activity := wait.Until(q, expectations.Equals(42))
 
@@ -83,6 +84,7 @@ func TestUntil_ConditionMetImmediately(t *testing.T) {
 }
 
 func TestUntil_ConditionMetAfterRetries(t *testing.T) {
+	t.Parallel()
 	q := &sequenceQuestion[int]{values: []int{1, 2, 42}}
 	activity := wait.Until(q, expectations.Equals(42)).
 		CheckingEvery(1 * time.Millisecond)
@@ -98,6 +100,7 @@ func TestUntil_ConditionMetAfterRetries(t *testing.T) {
 }
 
 func TestUntil_TimeoutExceeded(t *testing.T) {
+	t.Parallel()
 	q := &sequenceQuestion[int]{values: []int{0}}
 	activity := wait.Until(q, expectations.Equals(1)).
 		For(50 * time.Millisecond).
@@ -115,6 +118,7 @@ func TestUntil_TimeoutExceeded(t *testing.T) {
 }
 
 func TestUntil_QuestionErrorThenSuccess(t *testing.T) {
+	t.Parallel()
 	q := &errorThenValueQuestion[int]{errCount: 2, value: 99}
 	activity := wait.Until(q, expectations.Equals(99)).
 		CheckingEvery(1 * time.Millisecond)
@@ -130,6 +134,7 @@ func TestUntil_QuestionErrorThenSuccess(t *testing.T) {
 }
 
 func TestUntil_TimeoutWithPersistentQuestionError(t *testing.T) {
+	t.Parallel()
 	q := &errorThenValueQuestion[int]{errCount: 1000, value: 0}
 	activity := wait.Until(q, expectations.Equals(0)).
 		For(50 * time.Millisecond).
@@ -150,6 +155,7 @@ func TestUntil_TimeoutWithPersistentQuestionError(t *testing.T) {
 }
 
 func TestUntil_ExternalContextCancellation(t *testing.T) {
+	t.Parallel()
 	polled := make(chan struct{})
 	q := &signalOnFirstPollQuestion[int]{value: 0, polled: polled}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -172,12 +178,13 @@ func TestUntil_ExternalContextCancellation(t *testing.T) {
 	if strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("expected cancellation error, not timeout: %v", err)
 	}
-	if !strings.Contains(err.Error(), "cancelled") {
+	if !strings.Contains(err.Error(), "canceled") {
 		t.Fatalf("expected error to mention cancellation, got: %v", err)
 	}
 }
 
 func TestUntil_ForOverridesDefaultTimeout(t *testing.T) {
+	t.Parallel()
 	q := &sequenceQuestion[int]{values: []int{0}}
 
 	start := time.Now()
@@ -196,6 +203,7 @@ func TestUntil_ForOverridesDefaultTimeout(t *testing.T) {
 }
 
 func TestUntil_Description(t *testing.T) {
+	t.Parallel()
 	q := &sequenceQuestion[int]{values: []int{0}}
 	activity := wait.Until(q, expectations.Equals(1)).For(30 * time.Second)
 
@@ -205,7 +213,8 @@ func TestUntil_Description(t *testing.T) {
 	}
 }
 
-func TestUntil_ContextAlreadyCancelled(t *testing.T) {
+func TestUntil_ContextAlreadyCanceled(t *testing.T) {
+	t.Parallel()
 	q := &sequenceQuestion[int]{values: []int{0}}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -216,17 +225,18 @@ func TestUntil_ContextAlreadyCancelled(t *testing.T) {
 	err := activity.PerformAs(ctx, &stubActor{})
 
 	if err == nil {
-		t.Fatal("expected error for pre-cancelled context, got nil")
+		t.Fatal("expected error for pre-canceled context, got nil")
 	}
 	if strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("expected cancellation error, not timeout: %v", err)
 	}
-	if !strings.Contains(err.Error(), "cancelled") {
+	if !strings.Contains(err.Error(), "canceled") {
 		t.Fatalf("expected error to mention cancellation, got: %v", err)
 	}
 }
 
 func TestUntil_IntervalExceedsTimeout(t *testing.T) {
+	t.Parallel()
 	q := &sequenceQuestion[int]{values: []int{0}}
 	// interval (100ms) > timeout (10ms): only one poll should happen before timeout
 	activity := wait.Until(q, expectations.Equals(1)).
@@ -247,6 +257,7 @@ func TestUntil_IntervalExceedsTimeout(t *testing.T) {
 }
 
 func TestUntil_FailureMode(t *testing.T) {
+	t.Parallel()
 	q := &sequenceQuestion[int]{values: []int{0}}
 	activity := wait.Until(q, expectations.Equals(0))
 

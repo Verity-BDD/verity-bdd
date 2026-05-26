@@ -9,6 +9,7 @@ import (
 )
 
 func TestQuestionAboutCreatesQuestion(t *stdtesting.T) {
+	t.Parallel()
 	ctx := context.Background()
 	test := veritytesting.NewVerityTestWithContext(ctx, t)
 
@@ -32,6 +33,7 @@ func TestQuestionAboutCreatesQuestion(t *stdtesting.T) {
 }
 
 func TestNewQuestionDescriptionIsNotPrefixed(t *stdtesting.T) {
+	t.Parallel()
 	question := core.NewQuestion[string]("client record of company", func(ctx context.Context, actor core.Actor) (string, error) {
 		return "ok", nil
 	})
