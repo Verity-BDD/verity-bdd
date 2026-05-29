@@ -1,4 +1,4 @@
-package verity_wait
+package wait
 
 import (
 	"context"
@@ -13,7 +13,11 @@ import (
 // Created by Until(). Configure with For() and CheckingEvery().
 type Waiter[T any] interface {
 	verity.Activity
+	// For sets the maximum time to wait before the condition is considered unmet.
+	// Defaults to 5s.
 	For(time.Duration) Waiter[T]
+	// CheckingEvery sets how frequently the condition is re-evaluated.
+	// Defaults to 500ms.
 	CheckingEvery(time.Duration) Waiter[T]
 }
 
@@ -47,6 +51,8 @@ func (a *waiterAdapter[T]) FailureMode() verity.FailureMode {
 // Created by UntilReceived(). Configure timeout with For().
 type ChannelReceiver[T any] interface {
 	verity.Activity
+	// For sets the maximum time to wait for a value before timing out.
+	// Defaults to 5s.
 	For(time.Duration) ChannelReceiver[T]
 }
 
