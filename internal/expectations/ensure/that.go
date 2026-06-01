@@ -23,7 +23,7 @@ type EnsureActivity[T any] struct {
 }
 
 // That creates a new Ensure assertion with the new API
-func That[T any](question core.Question[T], expectation Expectation[T]) core.Activity {
+func That[T any](question core.Question[T], expectation Expectation[T]) *EnsureActivity[T] {
 	return &EnsureActivity[T]{
 		question:    question,
 		expectation: expectation,

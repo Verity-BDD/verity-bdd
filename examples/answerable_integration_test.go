@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	verity "github.com/verity-bdd/verity-bdd"
 	answerable "github.com/verity-bdd/verity-bdd/verity_answerable"
@@ -45,6 +46,34 @@ func TestAnswerableWithEnsure(t *testing.T) {
 	// Simple assertions that definitely work
 	actor.AttemptsTo(
 		ensure.That(answerable.ValueOf("test string"), expectations.Contains("test")),
+	)
+}
+
+// TestAnswerableWithEnsureAfter demonstrates the complete integration of answerable.ResultOf
+// with ensure.That().After() assertions using the new TestContext API.
+func TestAnswerableWithEnsureAfter(t *testing.T) {
+	ctx := context.Background()
+	test := verity.NewVerityTestWithContext(ctx, t)
+
+	actor := test.ActorCalled("TestActor")
+
+	startTime := time.Now()
+	getElapsedSeconds := func(context.Context, verity.Actor) (int, error) {
+		return int(time.Since(startTime).Seconds()), nil
+	}
+
+	actor.AttemptsTo(
+		ensure.That(
+			answerable.ResultOf("Get elapsed time immediately", getElapsedSeconds),
+			expectations.Equals(0),
+		),
+	)
+
+	actor.AttemptsTo(
+		ensure.That(
+			answerable.ResultOf("Get elapsed time after delay", getElapsedSeconds),
+			expectations.Equals(3),
+		).After(3 * time.Second),
 	)
 }
 
