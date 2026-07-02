@@ -1,8 +1,10 @@
 package expectations
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/verity-bdd/verity-bdd/internal/core"
 	"github.com/verity-bdd/verity-bdd/internal/expectations/ensure"
 )
 
@@ -11,10 +13,16 @@ type NotExpectation[T any] struct {
 	inner ensure.Expectation[T]
 }
 
-// Evaluate returns nil if the inner expectation fails, and an error if it passes
-func (n NotExpectation[T]) Evaluate(actual T) error {
-	if err := n.inner.Evaluate(actual); err == nil {
+// Evaluate returns nil if the inner expectation fails, and an error if it passes.
+// Question-resolution errors from AnswerTo expectations are propagated rather than
+// treated as "expectation not met".
+func (n NotExpectation[T]) Evaluate(ctx context.Context, actor core.Actor, actual T) error {
+	err := n.inner.Evaluate(ctx, actor, actual)
+	if err == nil {
 		return fmt.Errorf("not %s: got %v", n.inner.Description(), actual)
+	}
+	if IsQuestionResolutionError(err) {
+		return err
 	}
 	return nil
 }

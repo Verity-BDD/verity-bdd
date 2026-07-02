@@ -256,6 +256,101 @@ func TestUntil_IntervalExceedsTimeout(t *testing.T) {
 	}
 }
 
+func TestUntil_AnswerToExpectation_SucceedsAndReevaluatesPerTick(t *testing.T) {
+	t.Parallel()
+	// outerQ returns "bar" on the first poll, then "foo" on subsequent polls.
+	outerQ := &sequenceQuestion[string]{values: []string{"bar", "foo"}}
+	// innerQ (the expected value) always returns "foo".
+	innerQ := &sequenceQuestion[string]{values: []string{"foo"}}
+
+	activity := wait.Until(outerQ, expectations.EqualsAnswerTo(innerQ)).
+		CheckingEvery(1 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &stubActor{})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if outerQ.idx != 2 {
+		t.Fatalf("expected 2 outer polls (1 miss + 1 hit), got %d", outerQ.idx)
+	}
+	// innerQ is re-answered on every poll tick — once per outer poll.
+	if innerQ.idx != 2 {
+		t.Fatalf("expected 2 inner polls (re-evaluated per tick), got %d", innerQ.idx)
+	}
+}
+
+func TestUntil_AnswerToExpectation_FailsFastWhenInnerQuestionErrors(t *testing.T) {
+	t.Parallel()
+	brokenQ := &errorThenValueQuestion[string]{errCount: 999, value: "never"}
+
+	// Use a long timeout; the call must return well before it fires.
+	activity := wait.Until(
+		&sequenceQuestion[string]{values: []string{"anything"}},
+		expectations.EqualsAnswerTo(brokenQ),
+	).For(30 * time.Second).CheckingEvery(1 * time.Millisecond)
+
+	start := time.Now()
+	err := activity.PerformAs(context.Background(), &stubActor{})
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	if elapsed > time.Second {
+		t.Fatalf("expected fast failure, but took %v", elapsed)
+	}
+	if !expectations.IsQuestionResolutionError(err) {
+		t.Errorf("expected a question resolution error, got: %v", err)
+	}
+}
+
+// ctxCheckingQuestion returns ctx.Err() if the context is already done, value otherwise.
+// Used to simulate a well-behaved question that respects context cancellation.
+type ctxCheckingQuestion[T any] struct {
+	value T
+}
+
+func (q *ctxCheckingQuestion[T]) AnsweredBy(ctx context.Context, _ core.Actor) (T, error) {
+	if err := ctx.Err(); err != nil {
+		var zero T
+		return zero, err
+	}
+	return q.value, nil
+}
+
+func (q *ctxCheckingQuestion[T]) Description() string { return "ctx-checking question" }
+
+func TestUntil_AnswerToExpectation_ExpiredCtxProducesTimeoutNotQuestionResolutionError(t *testing.T) {
+	t.Parallel()
+	// outerQ ignores ctx and always returns a value — simulates a synchronous question
+	// that can succeed even after the context deadline has passed.
+	outerQ := &sequenceQuestion[string]{values: []string{"anything"}}
+	// innerQ is ctx-aware: returns ctx.Err() when the context is already done.
+	innerQ := &ctxCheckingQuestion[string]{value: "target"}
+
+	// Pre-cancel the context so the deadline race is deterministic: outerQ succeeds
+	// (ignores ctx), then innerQ fails with context.Canceled. That error must NOT be
+	// treated as a questionResolutionError — it must flow to the select and produce
+	// the correct "context canceled" message.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := wait.Until(outerQ, expectations.EqualsAnswerTo(innerQ)).
+		For(5*time.Second).
+		PerformAs(ctx, &stubActor{})
+
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	if expectations.IsQuestionResolutionError(err) {
+		t.Errorf("expired-context error should not surface as a question resolution error; got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "canceled") {
+		t.Errorf("expected 'canceled' in error message, got: %v", err)
+	}
+}
+
 func TestUntil_FailureMode(t *testing.T) {
 	t.Parallel()
 	q := &sequenceQuestion[int]{values: []int{0}}

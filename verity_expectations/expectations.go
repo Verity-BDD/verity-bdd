@@ -1,6 +1,9 @@
 package verity_expectations
 
 import (
+	"context"
+
+	verity "github.com/verity-bdd/verity-bdd"
 	internalexpectations "github.com/verity-bdd/verity-bdd/internal/expectations"
 	"github.com/verity-bdd/verity-bdd/verity_expectations/ensure"
 )
@@ -53,4 +56,39 @@ func Satisfies[T any](description string, fn func(T) error) ensure.Expectation[T
 // Not wraps an expectation and inverts its result.
 func Not[T any](inner ensure.Expectation[T]) ensure.Expectation[T] {
 	return internalexpectations.Not(inner)
+}
+
+// EqualsAnswerTo checks if the actual value equals the answer to the given question.
+func EqualsAnswerTo[T any](q verity.Question[T]) ensure.Expectation[T] {
+	return internalexpectations.EqualsAnswerTo(q)
+}
+
+// ContainsAnswerTo checks if a string contains the answer to the given question as a substring.
+func ContainsAnswerTo(q verity.Question[string]) ensure.Expectation[string] {
+	return internalexpectations.ContainsAnswerTo(q)
+}
+
+// ContainsKeyAnswerTo checks if a map contains the answer to the given question as a key.
+func ContainsKeyAnswerTo(q verity.Question[string]) ensure.Expectation[interface{}] {
+	return internalexpectations.ContainsKeyAnswerTo(q)
+}
+
+// ArrayLengthEqualsAnswerTo checks if an array, slice, or string has the length equal to the answer of the given question.
+func ArrayLengthEqualsAnswerTo[T any](q verity.Question[int]) ensure.Expectation[T] {
+	return internalexpectations.ArrayLengthEqualsAnswerTo[T](q)
+}
+
+// IsGreaterThanAnswerTo checks if a value is greater than the answer to the given question.
+func IsGreaterThanAnswerTo(q verity.Question[interface{}]) ensure.Expectation[interface{}] {
+	return internalexpectations.IsGreaterThanAnswerTo(q)
+}
+
+// IsLessThanAnswerTo checks if a value is less than the answer to the given question.
+func IsLessThanAnswerTo(q verity.Question[interface{}]) ensure.Expectation[interface{}] {
+	return internalexpectations.IsLessThanAnswerTo(q)
+}
+
+// SatisfiesAnswer creates a custom expectation where the fn receives ctx and actor at evaluation time.
+func SatisfiesAnswer[T any](description string, fn func(context.Context, verity.Actor, T) error) ensure.Expectation[T] {
+	return internalexpectations.SatisfiesAnswer(description, fn)
 }

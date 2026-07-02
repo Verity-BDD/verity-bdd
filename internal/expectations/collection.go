@@ -1,9 +1,11 @@
 package expectations
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
+	"github.com/verity-bdd/verity-bdd/internal/core"
 	"github.com/verity-bdd/verity-bdd/internal/expectations/ensure"
 )
 
@@ -11,7 +13,7 @@ import (
 type IsEmptyExpectation[T any] struct{}
 
 // Evaluate evaluates the is empty expectation
-func (ie IsEmptyExpectation[T]) Evaluate(actual T) error {
+func (ie IsEmptyExpectation[T]) Evaluate(_ context.Context, _ core.Actor, actual T) error {
 	val := reflect.ValueOf(actual)
 
 	switch val.Kind() {
@@ -50,7 +52,7 @@ type ArrayLengthEqualsExpectation[T any] struct {
 }
 
 // Evaluate evaluates the array length expectation
-func (ale ArrayLengthEqualsExpectation[T]) Evaluate(actual T) error {
+func (ale ArrayLengthEqualsExpectation[T]) Evaluate(_ context.Context, _ core.Actor, actual T) error {
 	val := reflect.ValueOf(actual)
 
 	var length int
@@ -77,4 +79,33 @@ func (ale ArrayLengthEqualsExpectation[T]) Description() string {
 // ArrayLengthEquals creates an ArrayLengthEquals expectation for the given type
 func ArrayLengthEquals[T any](expectedLength int) ensure.Expectation[T] {
 	return ArrayLengthEqualsExpectation[T]{expectedLength: expectedLength}
+}
+
+// ArrayLengthEqualsAnswerToExpectation checks if an array/slice/string has the length equal to the answer of a question
+type ArrayLengthEqualsAnswerToExpectation[T any] struct {
+	question core.Question[int]
+}
+
+// Evaluate answers the question, then delegates to ArrayLengthEqualsExpectation
+func (a ArrayLengthEqualsAnswerToExpectation[T]) Evaluate(ctx context.Context, actor core.Actor, actual T) error {
+	expected, err := a.question.AnsweredBy(ctx, actor)
+	if err != nil {
+		return newQuestionResolutionError(a.question.Description(), err)
+	}
+	return ArrayLengthEqualsExpectation[T]{expectedLength: expected}.Evaluate(ctx, actor, actual)
+}
+
+// Description returns the expectation description
+func (a ArrayLengthEqualsAnswerToExpectation[T]) Description() string {
+	return fmt.Sprintf("has length equal to the answer to '%s'", a.question.Description())
+}
+
+// ArrayLengthEqualsAnswerTo checks if an array/slice/string has the length equal to the answer of the given question.
+// When used in a polling activity (e.g. wait.Until), the expected-value question is
+// re-answered on every poll tick. To use a fixed expected value, resolve the question
+// once and pass the result to ArrayLengthEquals instead.
+// If the expected-value question returns an error on any tick, the poll exits immediately
+// rather than retrying — it does not count as a transient failure.
+func ArrayLengthEqualsAnswerTo[T any](q core.Question[int]) ensure.Expectation[T] {
+	return ArrayLengthEqualsAnswerToExpectation[T]{question: q}
 }

@@ -2,7 +2,6 @@ package ensure
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -34,26 +33,22 @@ func (e *AfterActivity[T]) FailureMode() core.FailureMode {
 }
 
 func (e *AfterActivity[T]) PerformAs(ctx context.Context, actor core.Actor) error {
-	ctx, cancel := context.WithTimeout(ctx, e.duration)
-	defer cancel()
+	timer := time.NewTimer(e.duration)
+	defer timer.Stop()
 
-	<-ctx.Done()
-
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		actual, err := e.question.AnsweredBy(context.Background(), actor)
-		if err != nil {
-			return fmt.Errorf("after waiting %v: question error: %w", e.duration, err)
-		}
-		if evalErr := e.expectation.Evaluate(actual); evalErr != nil {
-			return fmt.Errorf("after waiting %v: assertion failed for '%s': %w",
-				e.duration, e.question.Description(), evalErr)
-		}
-		return nil
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("while waiting for %v: %w", e.duration, ctx.Err())
+	case <-timer.C:
 	}
 
-	if errors.Is(ctx.Err(), context.Canceled) {
-		return fmt.Errorf("while waiting for %v: context canceled", e.duration)
+	actual, err := e.question.AnsweredBy(ctx, actor)
+	if err != nil {
+		return fmt.Errorf("after waiting %v: question error: %w", e.duration, err)
 	}
-
-	return fmt.Errorf("while waiting for %v: %w", e.duration, ctx.Err())
+	if evalErr := e.expectation.Evaluate(ctx, actor, actual); evalErr != nil {
+		return fmt.Errorf("after waiting %v: expectation failed for '%s': %w",
+			e.duration, e.question.Description(), evalErr)
+	}
+	return nil
 }
