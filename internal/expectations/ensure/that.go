@@ -10,7 +10,7 @@ import (
 // Expectation represents an expectation that can be evaluated against actual values
 type Expectation[T any] interface {
 	// Evaluate evaluates the expectation against the actual value
-	Evaluate(actual T) error
+	Evaluate(ctx context.Context, actor core.Actor, actual T) error
 
 	// Description returns a human-readable description of the expectation
 	Description() string
@@ -45,8 +45,11 @@ func (e *EnsureActivity[T]) PerformAs(ctx context.Context, actor core.Actor) err
 		return fmt.Errorf("failed to answer question '%s': %w", e.question.Description(), err)
 	}
 
-	if evaluateErr := e.expectation.Evaluate(actual); evaluateErr != nil {
-		return fmt.Errorf("assertion failed for '%s': %w", e.question.Description(), evaluateErr)
+	if evaluateErr := e.expectation.Evaluate(ctx, actor, actual); evaluateErr != nil {
+		if IsQuestionResolutionError(evaluateErr) {
+			return evaluateErr
+		}
+		return fmt.Errorf("expectation failed for '%s': %w", e.question.Description(), evaluateErr)
 	}
 
 	return nil

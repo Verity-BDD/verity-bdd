@@ -43,3 +43,5 @@ TODO.md
 .worktrees/
 
 test_report.txt
+
+.tdd-session/

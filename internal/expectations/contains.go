@@ -1,10 +1,12 @@
 package expectations
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
 
+	"github.com/verity-bdd/verity-bdd/internal/core"
 	"github.com/verity-bdd/verity-bdd/internal/expectations/ensure"
 )
 
@@ -19,7 +21,7 @@ func NewContains(substring string) ensure.Expectation[string] {
 }
 
 // Evaluate evaluates the contains expectation
-func (c ContainsExpectation) Evaluate(actual string) error {
+func (c ContainsExpectation) Evaluate(_ context.Context, _ core.Actor, actual string) error {
 	if actual == "" {
 		return fmt.Errorf("expected string to contain '%s', but got empty string", c.substring)
 	}
@@ -50,7 +52,7 @@ func NewContainsKey(key string) ensure.Expectation[interface{}] {
 }
 
 // Evaluate evaluates the contains key expectation
-func (ck ContainsKeyExpectation) Evaluate(actual interface{}) error {
+func (ck ContainsKeyExpectation) Evaluate(_ context.Context, _ core.Actor, actual interface{}) error {
 	val := reflect.ValueOf(actual)
 	if val.Kind() != reflect.Map {
 		return fmt.Errorf("expected a map, but got %T", actual)
@@ -80,4 +82,62 @@ func (ck ContainsKeyExpectation) Description() string {
 // Convenience function for creating ContainsKey expectations
 func ContainsKey(key string) ensure.Expectation[interface{}] {
 	return NewContainsKey(key)
+}
+
+// ContainsAnswerToExpectation checks if a string contains the answer to a question as a substring
+type ContainsAnswerToExpectation struct {
+	question core.Question[string]
+}
+
+// Evaluate answers the question, then delegates to ContainsExpectation
+func (c ContainsAnswerToExpectation) Evaluate(ctx context.Context, actor core.Actor, actual string) error {
+	expected, err := c.question.AnsweredBy(ctx, actor)
+	if err != nil {
+		return newQuestionResolutionError(c.question.Description(), err)
+	}
+	return ContainsExpectation{substring: expected}.Evaluate(ctx, actor, actual)
+}
+
+// Description returns the expectation description
+func (c ContainsAnswerToExpectation) Description() string {
+	return fmt.Sprintf("contains the answer to '%s'", c.question.Description())
+}
+
+// ContainsAnswerTo checks if a string contains the answer to the given question as a substring.
+// When used in a polling activity (e.g. wait.Until), the expected-value question is
+// re-answered on every poll tick. To use a fixed expected value, resolve the question
+// once and pass the result to Contains instead.
+// If the expected-value question returns an error on any tick, the poll exits immediately
+// rather than retrying — it does not count as a transient failure.
+func ContainsAnswerTo(q core.Question[string]) ensure.Expectation[string] {
+	return ContainsAnswerToExpectation{question: q}
+}
+
+// ContainsKeyAnswerToExpectation checks if a map contains the answer to a question as a key
+type ContainsKeyAnswerToExpectation struct {
+	question core.Question[string]
+}
+
+// Evaluate answers the question, then delegates to ContainsKeyExpectation
+func (c ContainsKeyAnswerToExpectation) Evaluate(ctx context.Context, actor core.Actor, actual interface{}) error {
+	expected, err := c.question.AnsweredBy(ctx, actor)
+	if err != nil {
+		return newQuestionResolutionError(c.question.Description(), err)
+	}
+	return ContainsKeyExpectation{key: expected}.Evaluate(ctx, actor, actual)
+}
+
+// Description returns the expectation description
+func (c ContainsKeyAnswerToExpectation) Description() string {
+	return fmt.Sprintf("contains key from the answer to '%s'", c.question.Description())
+}
+
+// ContainsKeyAnswerTo checks if a map contains the answer to the given question as a key.
+// When used in a polling activity (e.g. wait.Until), the expected-value question is
+// re-answered on every poll tick. To use a fixed expected value, resolve the question
+// once and pass the result to ContainsKey instead.
+// If the expected-value question returns an error on any tick, the poll exits immediately
+// rather than retrying — it does not count as a transient failure.
+func ContainsKeyAnswerTo(q core.Question[string]) ensure.Expectation[interface{}] {
+	return ContainsKeyAnswerToExpectation{question: q}
 }

@@ -1,6 +1,9 @@
 package expectations
 
 import (
+	"context"
+
+	"github.com/verity-bdd/verity-bdd/internal/core"
 	"github.com/verity-bdd/verity-bdd/internal/expectations/ensure"
 )
 
@@ -32,11 +35,35 @@ func Satisfies[T any](description string, fn func(T) error) ensure.Expectation[T
 }
 
 // Evaluate evaluates the expectation by calling the provided function
-func (s *SatisfiesExpectation[T]) Evaluate(actual T) error {
+func (s *SatisfiesExpectation[T]) Evaluate(_ context.Context, _ core.Actor, actual T) error {
 	return s.fn(actual)
 }
 
 // Description returns the custom description of the expectation
 func (s *SatisfiesExpectation[T]) Description() string {
+	return s.description
+}
+
+// SatisfiesAnswerExpectation represents a custom expectation whose fn receives ctx and actor
+type SatisfiesAnswerExpectation[T any] struct {
+	description string
+	fn          func(context.Context, core.Actor, T) error
+}
+
+// SatisfiesAnswer creates a custom expectation where the fn receives ctx and actor at evaluation time
+func SatisfiesAnswer[T any](description string, fn func(context.Context, core.Actor, T) error) ensure.Expectation[T] {
+	return &SatisfiesAnswerExpectation[T]{
+		description: description,
+		fn:          fn,
+	}
+}
+
+// Evaluate calls the provided function with ctx, actor, and actual
+func (s *SatisfiesAnswerExpectation[T]) Evaluate(ctx context.Context, actor core.Actor, actual T) error {
+	return s.fn(ctx, actor, actual)
+}
+
+// Description returns the custom description of the expectation
+func (s *SatisfiesAnswerExpectation[T]) Description() string {
 	return s.description
 }
