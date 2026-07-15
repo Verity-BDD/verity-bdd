@@ -69,17 +69,7 @@ func (c *ConditionActivity[T]) PerformAs(ctx context.Context, actor core.Actor) 
 		if err != nil {
 			lastErr = err
 		} else if evalErr := c.expectation.Evaluate(ctx, actor, actual); evalErr != nil {
-			if ensure.IsQuestionResolutionError(evalErr) {
-				if ctx.Err() == nil {
-					return evalErr
-				}
-				// The inner question failed because the context expired during evaluation.
-				// Store the context error so the select produces the correct timeout/cancel
-				// message rather than surfacing a question-resolution error.
-				lastErr = ctx.Err()
-			} else {
-				lastErr = evalErr
-			}
+			lastErr = evalErr
 		} else {
 			return nil
 		}

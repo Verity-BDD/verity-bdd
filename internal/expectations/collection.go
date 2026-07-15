@@ -104,8 +104,6 @@ func (a ArrayLengthEqualsAnswerToExpectation[T]) Description() string {
 // When used in a polling activity (e.g. wait.Until), the expected-value question is
 // re-answered on every poll tick. To use a fixed expected value, resolve the question
 // once and pass the result to ArrayLengthEquals instead.
-// If the expected-value question returns an error on any tick, the poll exits immediately
-// rather than retrying — it does not count as a transient failure.
 func ArrayLengthEqualsAnswerTo[T any](q core.Question[int]) ensure.Expectation[T] {
 	return ArrayLengthEqualsAnswerToExpectation[T]{question: q}
 }

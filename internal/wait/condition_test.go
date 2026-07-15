@@ -280,31 +280,6 @@ func TestUntil_AnswerToExpectation_SucceedsAndReevaluatesPerTick(t *testing.T) {
 	}
 }
 
-func TestUntil_AnswerToExpectation_FailsFastWhenInnerQuestionErrors(t *testing.T) {
-	t.Parallel()
-	brokenQ := &errorThenValueQuestion[string]{errCount: 999, value: "never"}
-
-	// Use a long timeout; the call must return well before it fires.
-	activity := wait.Until(
-		&sequenceQuestion[string]{values: []string{"anything"}},
-		expectations.EqualsAnswerTo(brokenQ),
-	).For(30 * time.Second).CheckingEvery(1 * time.Millisecond)
-
-	start := time.Now()
-	err := activity.PerformAs(context.Background(), &stubActor{})
-	elapsed := time.Since(start)
-
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
-	if elapsed > time.Second {
-		t.Fatalf("expected fast failure, but took %v", elapsed)
-	}
-	if !expectations.IsQuestionResolutionError(err) {
-		t.Errorf("expected a question resolution error, got: %v", err)
-	}
-}
-
 // ctxCheckingQuestion returns ctx.Err() if the context is already done, value otherwise.
 // Used to simulate a well-behaved question that respects context cancellation.
 type ctxCheckingQuestion[T any] struct {
@@ -321,7 +296,7 @@ func (q *ctxCheckingQuestion[T]) AnsweredBy(ctx context.Context, _ core.Actor) (
 
 func (q *ctxCheckingQuestion[T]) Description() string { return "ctx-checking question" }
 
-func TestUntil_AnswerToExpectation_ExpiredCtxProducesTimeoutNotQuestionResolutionError(t *testing.T) {
+func TestUntil_AnswerToExpectation_ExpiredCtxProducesCanceledError(t *testing.T) {
 	t.Parallel()
 	// outerQ ignores ctx and always returns a value — simulates a synchronous question
 	// that can succeed even after the context deadline has passed.
@@ -330,9 +305,9 @@ func TestUntil_AnswerToExpectation_ExpiredCtxProducesTimeoutNotQuestionResolutio
 	innerQ := &ctxCheckingQuestion[string]{value: "target"}
 
 	// Pre-cancel the context so the deadline race is deterministic: outerQ succeeds
-	// (ignores ctx), then innerQ fails with context.Canceled. That error must NOT be
-	// treated as a questionResolutionError — it must flow to the select and produce
-	// the correct "context canceled" message.
+	// (ignores ctx), then innerQ returns context.Canceled. That error flows to the
+	// select branch in the wait loop, which surfaces it as the "context canceled"
+	// message rather than a transient poll failure.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -343,11 +318,28 @@ func TestUntil_AnswerToExpectation_ExpiredCtxProducesTimeoutNotQuestionResolutio
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
-	if expectations.IsQuestionResolutionError(err) {
-		t.Errorf("expired-context error should not surface as a question resolution error; got: %v", err)
-	}
 	if !strings.Contains(err.Error(), "canceled") {
 		t.Errorf("expected 'canceled' in error message, got: %v", err)
+	}
+}
+
+func TestUntil_AnswerToExpectation_PreCanceledCtxProducesCanceledError(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[string]{values: []string{"anything"}}
+	innerQ := &ctxCheckingQuestion[string]{value: "target"}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := wait.Until(outerQ, expectations.EqualsAnswerTo(innerQ)).
+		For(5*time.Second).
+		PerformAs(ctx, &stubActor{})
+
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "canceled") {
+		t.Fatalf("expected 'canceled' in error message, got: %v", err)
 	}
 }
 
@@ -358,5 +350,144 @@ func TestUntil_FailureMode(t *testing.T) {
 
 	if mode := activity.FailureMode(); mode != core.FailFast {
 		t.Fatalf("expected FailFast, got %v", mode)
+	}
+}
+
+func TestUntil_AnswerToExpectation_RetriesOnTransientInnerQuestionError(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[string]{values: []string{"target"}}
+	innerQ := &errorThenValueQuestion[string]{errCount: 3, value: "target"}
+
+	activity := wait.Until(outerQ, expectations.EqualsAnswerTo(innerQ)).
+		CheckingEvery(1 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &stubActor{})
+
+	if err != nil {
+		t.Fatalf("expected no error after transient inner question errors, got %v", err)
+	}
+}
+
+func TestUntil_AnswerToExpectation_TimesOutWhenInnerQuestionAlwaysErrors(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[string]{values: []string{"anything"}}
+	innerQ := &errorThenValueQuestion[string]{errCount: 999, value: "never"}
+
+	start := time.Now()
+	err := wait.Until(outerQ, expectations.EqualsAnswerTo(innerQ)).
+		For(50*time.Millisecond).
+		CheckingEvery(1*time.Millisecond).
+		PerformAs(context.Background(), &stubActor{})
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected a timeout error, got nil")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected error to contain \"timed out\", got: %v", err)
+	}
+	if elapsed < 50*time.Millisecond {
+		t.Fatalf("expected elapsed time >= 50ms (did not fast-fail), got: %v", elapsed)
+	}
+}
+
+func TestUntil_AnswerToExpectation_TimeoutErrorContainsInnerQuestionErrorText(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[string]{values: []string{"anything"}}
+	innerQ := &errorThenValueQuestion[string]{errCount: 999, value: "never"}
+
+	err := wait.Until(outerQ, expectations.EqualsAnswerTo(innerQ)).
+		For(50*time.Millisecond).
+		CheckingEvery(1*time.Millisecond).
+		PerformAs(context.Background(), &stubActor{})
+
+	if err == nil {
+		t.Fatal("expected a timeout error, got nil")
+	}
+	if !strings.Contains(err.Error(), "not ready yet") {
+		t.Fatalf("expected timeout error to contain inner question error text \"not ready yet\", got: %v", err)
+	}
+}
+
+func TestUntil_NotEqualsAnswerTo_RetriesOnTransientInnerQuestionError(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[string]{values: []string{"target"}}
+	innerQ := &errorThenValueQuestion[string]{errCount: 3, value: "other"}
+
+	activity := wait.Until(outerQ, expectations.Not(expectations.EqualsAnswerTo(innerQ))).
+		CheckingEvery(1 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &stubActor{})
+
+	if err != nil {
+		t.Fatalf("expected no error after transient inner question errors, got %v", err)
+	}
+}
+
+func TestUntil_NotEqualsAnswerTo_TimesOutWhenInnerQuestionAlwaysErrors(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[string]{values: []string{"anything"}}
+	innerQ := &errorThenValueQuestion[string]{errCount: 999, value: "never"}
+
+	start := time.Now()
+	err := wait.Until(outerQ, expectations.Not(expectations.EqualsAnswerTo(innerQ))).
+		For(50*time.Millisecond).
+		CheckingEvery(1*time.Millisecond).
+		PerformAs(context.Background(), &stubActor{})
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected a timeout error, got nil")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected error to contain \"timed out\", got: %v", err)
+	}
+	if elapsed < 50*time.Millisecond {
+		t.Fatalf("expected elapsed time >= 50ms (did not fast-fail), got: %v", elapsed)
+	}
+}
+
+func TestUntil_ContainsAnswerTo_RetriesOnTransientInnerQuestionError(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[string]{values: []string{"hello world"}}
+	innerQ := &errorThenValueQuestion[string]{errCount: 2, value: "world"}
+
+	activity := wait.Until(outerQ, expectations.ContainsAnswerTo(innerQ)).
+		CheckingEvery(1 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &stubActor{})
+
+	if err != nil {
+		t.Fatalf("expected no error after transient inner question errors, got %v", err)
+	}
+}
+
+func TestUntil_IsGreaterThanAnswerTo_RetriesOnTransientInnerQuestionError(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[interface{}]{values: []interface{}{int(10)}}
+	innerQ := &errorThenValueQuestion[interface{}]{errCount: 2, value: int(5)}
+
+	activity := wait.Until(outerQ, expectations.IsGreaterThanAnswerTo(innerQ)).
+		CheckingEvery(1 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &stubActor{})
+
+	if err != nil {
+		t.Fatalf("expected no error after transient inner question errors, got %v", err)
+	}
+}
+
+func TestUntil_ArrayLengthEqualsAnswerTo_RetriesOnTransientInnerQuestionError(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[[]string]{values: [][]string{{"a", "b", "c"}}}
+	innerQ := &errorThenValueQuestion[int]{errCount: 2, value: 3}
+
+	activity := wait.Until(outerQ, expectations.ArrayLengthEqualsAnswerTo[[]string](innerQ)).
+		CheckingEvery(1 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &stubActor{})
+
+	if err != nil {
+		t.Fatalf("expected no error after transient inner question errors, got %v", err)
 	}
 }
