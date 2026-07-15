@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	coreMocks "github.com/verity-bdd/verity-bdd/internal/core/testing/mocks"
+	"github.com/verity-bdd/verity-bdd/internal/expectations"
 	"github.com/verity-bdd/verity-bdd/internal/expectations/ensure"
 	"github.com/verity-bdd/verity-bdd/internal/expectations/testhelpers"
 )
@@ -75,4 +76,44 @@ func TestEnsureActivity_PerformAs_NormalEvaluationError_WrappedWithContext(t *te
 	assert.False(t, ensure.IsQuestionResolutionError(err))
 	assert.Contains(t, err.Error(), "expectation failed")
 	assert.Contains(t, err.Error(), "outer question")
+}
+
+func TestEnsureActivity_PerformAs_EqualsAnswerTo_InnerQuestionError_ReturnsQuestionResolutionError(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+
+	ctx := context.Background()
+
+	outerQ := coreMocks.NewMockQuestion[string](ctrl)
+	outerQ.EXPECT().AnsweredBy(ctx, nil).Return("x", nil)
+	outerQ.EXPECT().Description().Return("outer question").AnyTimes()
+
+	innerQ := coreMocks.NewMockQuestion[string](ctrl)
+	innerQ.EXPECT().AnsweredBy(ctx, nil).Return("", errors.New("db error"))
+	innerQ.EXPECT().Description().Return("inner question").AnyTimes()
+
+	err := ensure.That[string](outerQ, expectations.EqualsAnswerTo(innerQ)).PerformAs(ctx, nil)
+
+	require.Error(t, err)
+	assert.True(t, ensure.IsQuestionResolutionError(err), "expected questionResolutionError, got: %v", err)
+}
+
+func TestEnsureActivity_PerformAs_NotEqualsAnswerTo_InnerQuestionError_PropagatesQuestionResolutionError(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+
+	ctx := context.Background()
+
+	outerQ := coreMocks.NewMockQuestion[string](ctrl)
+	outerQ.EXPECT().AnsweredBy(ctx, nil).Return("x", nil)
+	outerQ.EXPECT().Description().Return("outer question").AnyTimes()
+
+	innerQ := coreMocks.NewMockQuestion[string](ctrl)
+	innerQ.EXPECT().AnsweredBy(ctx, nil).Return("", errors.New("db error"))
+	innerQ.EXPECT().Description().Return("inner question").AnyTimes()
+
+	err := ensure.That[string](outerQ, expectations.Not(expectations.EqualsAnswerTo(innerQ))).PerformAs(ctx, nil)
+
+	require.Error(t, err)
+	assert.True(t, ensure.IsQuestionResolutionError(err), "expected questionResolutionError, got: %v", err)
 }

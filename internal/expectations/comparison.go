@@ -82,8 +82,6 @@ func (ig IsGreaterThanAnswerToExpectation) Description() string {
 // When used in a polling activity (e.g. wait.Until), the expected-value question is
 // re-answered on every poll tick. To use a fixed expected value, resolve the question
 // once and pass the result to IsGreaterThan instead.
-// If the expected-value question returns an error on any tick, the poll exits immediately
-// rather than retrying — it does not count as a transient failure.
 func IsGreaterThanAnswerTo(q core.Question[interface{}]) ensure.Expectation[interface{}] {
 	return IsGreaterThanAnswerToExpectation{question: q}
 }
@@ -111,8 +109,6 @@ func (il IsLessThanAnswerToExpectation) Description() string {
 // When used in a polling activity (e.g. wait.Until), the expected-value question is
 // re-answered on every poll tick. To use a fixed expected value, resolve the question
 // once and pass the result to IsLessThan instead.
-// If the expected-value question returns an error on any tick, the poll exits immediately
-// rather than retrying — it does not count as a transient failure.
 func IsLessThanAnswerTo(q core.Question[interface{}]) ensure.Expectation[interface{}] {
 	return IsLessThanAnswerToExpectation{question: q}
 }

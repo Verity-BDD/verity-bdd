@@ -107,8 +107,6 @@ func (c ContainsAnswerToExpectation) Description() string {
 // When used in a polling activity (e.g. wait.Until), the expected-value question is
 // re-answered on every poll tick. To use a fixed expected value, resolve the question
 // once and pass the result to Contains instead.
-// If the expected-value question returns an error on any tick, the poll exits immediately
-// rather than retrying — it does not count as a transient failure.
 func ContainsAnswerTo(q core.Question[string]) ensure.Expectation[string] {
 	return ContainsAnswerToExpectation{question: q}
 }
@@ -136,8 +134,6 @@ func (c ContainsKeyAnswerToExpectation) Description() string {
 // When used in a polling activity (e.g. wait.Until), the expected-value question is
 // re-answered on every poll tick. To use a fixed expected value, resolve the question
 // once and pass the result to ContainsKey instead.
-// If the expected-value question returns an error on any tick, the poll exits immediately
-// rather than retrying — it does not count as a transient failure.
 func ContainsKeyAnswerTo(q core.Question[string]) ensure.Expectation[interface{}] {
 	return ContainsKeyAnswerToExpectation{question: q}
 }
