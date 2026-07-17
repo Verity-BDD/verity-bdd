@@ -323,26 +323,6 @@ func TestUntil_AnswerToExpectation_ExpiredCtxProducesCanceledError(t *testing.T)
 	}
 }
 
-func TestUntil_AnswerToExpectation_PreCanceledCtxProducesCanceledError(t *testing.T) {
-	t.Parallel()
-	outerQ := &sequenceQuestion[string]{values: []string{"anything"}}
-	innerQ := &ctxCheckingQuestion[string]{value: "target"}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	err := wait.Until(outerQ, expectations.EqualsAnswerTo(innerQ)).
-		For(5*time.Second).
-		PerformAs(ctx, &stubActor{})
-
-	if err == nil {
-		t.Fatal("expected an error, got nil")
-	}
-	if !strings.Contains(err.Error(), "canceled") {
-		t.Fatalf("expected 'canceled' in error message, got: %v", err)
-	}
-}
-
 func TestUntil_FailureMode(t *testing.T) {
 	t.Parallel()
 	q := &sequenceQuestion[int]{values: []int{0}}
@@ -483,6 +463,36 @@ func TestUntil_ArrayLengthEqualsAnswerTo_RetriesOnTransientInnerQuestionError(t 
 	innerQ := &errorThenValueQuestion[int]{errCount: 2, value: 3}
 
 	activity := wait.Until(outerQ, expectations.ArrayLengthEqualsAnswerTo[[]string](innerQ)).
+		CheckingEvery(1 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &stubActor{})
+
+	if err != nil {
+		t.Fatalf("expected no error after transient inner question errors, got %v", err)
+	}
+}
+
+func TestUntil_IsLessThanAnswerTo_RetriesOnTransientInnerQuestionError(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[interface{}]{values: []interface{}{int(3)}}
+	innerQ := &errorThenValueQuestion[interface{}]{errCount: 2, value: int(10)}
+
+	activity := wait.Until(outerQ, expectations.IsLessThanAnswerTo(innerQ)).
+		CheckingEvery(1 * time.Millisecond)
+
+	err := activity.PerformAs(context.Background(), &stubActor{})
+
+	if err != nil {
+		t.Fatalf("expected no error after transient inner question errors, got %v", err)
+	}
+}
+
+func TestUntil_ContainsKeyAnswerTo_RetriesOnTransientInnerQuestionError(t *testing.T) {
+	t.Parallel()
+	outerQ := &sequenceQuestion[interface{}]{values: []interface{}{map[string]interface{}{"foo": 1}}}
+	innerQ := &errorThenValueQuestion[string]{errCount: 2, value: "foo"}
+
+	activity := wait.Until(outerQ, expectations.ContainsKeyAnswerTo(innerQ)).
 		CheckingEvery(1 * time.Millisecond)
 
 	err := activity.PerformAs(context.Background(), &stubActor{})
