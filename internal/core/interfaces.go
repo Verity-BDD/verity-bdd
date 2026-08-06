@@ -567,8 +567,8 @@ type Task interface {
 //		return db.QueryRow("SELECT COUNT(*) FROM users").Int()
 //	})
 //
-//	// Using core.NewQuestion
-//	userName := core.NewQuestion("current user name", func(actor core.Actor, ctx context.Context) (string, error) {
+//	// Using core.QuestionAbout
+//	userName := core.QuestionAbout("current user name", func(actor core.Actor, ctx context.Context) (string, error) {
 //		session := actor.AbilityTo(&auth.SessionAbility{}).(auth.SessionAbility)
 //		return session.GetCurrentUser().Name, nil
 //	})

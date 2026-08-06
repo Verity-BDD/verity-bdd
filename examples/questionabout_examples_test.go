@@ -11,17 +11,17 @@ import (
 	"github.com/verity-bdd/verity-bdd/verity_expectations/ensure"
 )
 
-// TestResultOf demonstrates usage of answerable.ResultOf for dynamic assertions
-func TestResultOf(t *testing.T) {
+// TestQuestionAbout demonstrates usage of verity.QuestionAbout for dynamic assertions
+func TestQuestionAbout(t *testing.T) {
 	test := verity.NewVerityTest(t, verity.Scene{})
 
-	actor := test.ActorCalled("ResultOfTester")
+	actor := test.ActorCalled("QuestionAboutTester")
 
 	// Basic usage with different data types
 	actor.AttemptsTo(
 		// Simple calculation
 		ensure.That(
-			answerable.ResultOf("calculated value", func(ctx context.Context, actor verity.Actor) (int, error) {
+			verity.QuestionAbout("calculated value", func(ctx context.Context, actor verity.Actor) (int, error) {
 				return 42, nil
 			}),
 			expectations.Equals(42),
@@ -29,15 +29,15 @@ func TestResultOf(t *testing.T) {
 
 		// String manipulation
 		ensure.That(
-			answerable.ResultOf("greeting message", func(ctx context.Context, actor verity.Actor) (string, error) {
+			verity.QuestionAbout("greeting message", func(ctx context.Context, actor verity.Actor) (string, error) {
 				return "Hello, " + actor.Name(), nil
 			}),
-			expectations.Contains("Hello, ResultOfTester"),
+			expectations.Contains("Hello, QuestionAboutTester"),
 		),
 
 		// Boolean logic
 		ensure.That(
-			answerable.ResultOf("validation result", func(ctx context.Context, actor verity.Actor) (bool, error) {
+			verity.QuestionAbout("validation result", func(ctx context.Context, actor verity.Actor) (bool, error) {
 				name := actor.Name()
 				return len(name) > 5, nil
 			}),
@@ -46,7 +46,7 @@ func TestResultOf(t *testing.T) {
 
 		// Float calculation
 		ensure.That(
-			answerable.ResultOf("division result", func(ctx context.Context, actor verity.Actor) (float64, error) {
+			verity.QuestionAbout("division result", func(ctx context.Context, actor verity.Actor) (float64, error) {
 				return 10.0 / 2.0, nil
 			}),
 			expectations.Equals(5.0),
@@ -54,8 +54,8 @@ func TestResultOf(t *testing.T) {
 	)
 }
 
-// TestResultOfCalculations demonstrates using ResultOf for calculations
-func TestResultOfCalculations(t *testing.T) {
+// TestQuestionAboutCalculations demonstrates using QuestionAbout for calculations
+func TestQuestionAboutCalculations(t *testing.T) {
 	test := verity.NewVerityTest(t, verity.Scene{})
 
 	dataProcessor := test.ActorCalled("DataProcessor")
@@ -65,7 +65,7 @@ func TestResultOfCalculations(t *testing.T) {
 
 	dataProcessor.AttemptsTo(
 		ensure.That(
-			answerable.ResultOf("sum of even numbers", func(ctx context.Context, actor verity.Actor) (int, error) {
+			verity.QuestionAbout("sum of even numbers", func(ctx context.Context, actor verity.Actor) (int, error) {
 				sum := 0
 				for _, num := range numbers {
 					if num%2 == 0 {
@@ -78,7 +78,7 @@ func TestResultOfCalculations(t *testing.T) {
 		),
 
 		ensure.That(
-			answerable.ResultOf("average of numbers", func(ctx context.Context, actor verity.Actor) (float64, error) {
+			verity.QuestionAbout("average of numbers", func(ctx context.Context, actor verity.Actor) (float64, error) {
 				if len(numbers) == 0 {
 					return 0, fmt.Errorf("no numbers to calculate average")
 				}
@@ -92,7 +92,7 @@ func TestResultOfCalculations(t *testing.T) {
 		),
 
 		ensure.That(
-			answerable.ResultOf("maximum value", func(ctx context.Context, actor verity.Actor) (int, error) {
+			verity.QuestionAbout("maximum value", func(ctx context.Context, actor verity.Actor) (int, error) {
 				if len(numbers) == 0 {
 					return 0, fmt.Errorf("no numbers to find maximum")
 				}
@@ -109,8 +109,8 @@ func TestResultOfCalculations(t *testing.T) {
 	)
 }
 
-// TestResultWithErrorHandling demonstrates error handling in ResultOf functions
-func TestResultWithErrorHandling(t *testing.T) {
+// TestQuestionAboutErrorHandling demonstrates error handling in QuestionAbout functions
+func TestQuestionAboutErrorHandling(t *testing.T) {
 	test := verity.NewVerityTest(t, verity.Scene{})
 
 	actor := test.ActorCalled("ErrorTestActor")
@@ -119,7 +119,7 @@ func TestResultWithErrorHandling(t *testing.T) {
 	actor.AttemptsTo(
 		// This will succeed
 		ensure.That(
-			answerable.ResultOf("successful operation", func(ctx context.Context, actor verity.Actor) (string, error) {
+			verity.QuestionAbout("successful operation", func(ctx context.Context, actor verity.Actor) (string, error) {
 				return "success", nil
 			}),
 			expectations.Equals("success"),
@@ -127,7 +127,7 @@ func TestResultWithErrorHandling(t *testing.T) {
 
 		// Example: Conditional logic with error handling
 		ensure.That(
-			answerable.ResultOf("safe division", func(ctx context.Context, actor verity.Actor) (float64, error) {
+			verity.QuestionAbout("safe division", func(ctx context.Context, actor verity.Actor) (float64, error) {
 				numerator, denominator := 10, 2
 				if denominator == 0 {
 					return 0, fmt.Errorf("division by zero")
@@ -139,7 +139,7 @@ func TestResultWithErrorHandling(t *testing.T) {
 
 		// Example: String manipulation with validation
 		ensure.That(
-			answerable.ResultOf("validated string", func(ctx context.Context, actor verity.Actor) (string, error) {
+			verity.QuestionAbout("validated string", func(ctx context.Context, actor verity.Actor) (string, error) {
 				input := "test"
 				if input == "" {
 					return "", fmt.Errorf("input cannot be empty")
@@ -151,15 +151,15 @@ func TestResultWithErrorHandling(t *testing.T) {
 	)
 }
 
-// TestResultOfWithActor demonstrates using actor properties in ResultOf
-func TestResultOfWithActor(t *testing.T) {
+// TestQuestionAboutWithActor demonstrates using actor properties in QuestionAbout
+func TestQuestionAboutWithActor(t *testing.T) {
 	test := verity.NewVerityTest(t, verity.Scene{})
 
 	actor1 := test.ActorCalled("Actor1")
 	actor2 := test.ActorCalled("Actor2")
 
-	// Both actors use the same ResultOf question but get different results
-	greetingQuestion := answerable.ResultOf("personalized greeting", func(ctx context.Context, actor verity.Actor) (string, error) {
+	// Both actors use the same QuestionAbout question but get different results
+	greetingQuestion := verity.QuestionAbout("personalized greeting", func(ctx context.Context, actor verity.Actor) (string, error) {
 		return fmt.Sprintf("Hello, %s!", actor.Name()), nil
 	})
 
@@ -172,7 +172,7 @@ func TestResultOfWithActor(t *testing.T) {
 	)
 
 	// Different actors can have different calculations
-	nameLengthQuestion := answerable.ResultOf("name length", func(ctx context.Context, actor verity.Actor) (int, error) {
+	nameLengthQuestion := verity.QuestionAbout("name length", func(ctx context.Context, actor verity.Actor) (int, error) {
 		return len(actor.Name()), nil
 	})
 
@@ -185,8 +185,8 @@ func TestResultOfWithActor(t *testing.T) {
 	)
 }
 
-// TestResultOfComplexTypes demonstrates using ResultOf with complex data structures
-func TestResultOfComplexTypes(t *testing.T) {
+// TestQuestionAboutComplexTypes demonstrates using QuestionAbout with complex data structures
+func TestQuestionAboutComplexTypes(t *testing.T) {
 	test := verity.NewVerityTest(t, verity.Scene{})
 
 	actor := test.ActorCalled("ComplexTypeTester")
@@ -200,7 +200,7 @@ func TestResultOfComplexTypes(t *testing.T) {
 	actor.AttemptsTo(
 		// Create and validate a struct
 		ensure.That(
-			answerable.ResultOf("user creation", func(ctx context.Context, actor verity.Actor) (User, error) {
+			verity.QuestionAbout("user creation", func(ctx context.Context, actor verity.Actor) (User, error) {
 				return User{
 					Name:  "John Doe",
 					Age:   30,
@@ -212,7 +212,7 @@ func TestResultOfComplexTypes(t *testing.T) {
 
 		// Work with slices
 		ensure.That(
-			answerable.ResultOf("user names list", func(ctx context.Context, actor verity.Actor) ([]string, error) {
+			verity.QuestionAbout("user names list", func(ctx context.Context, actor verity.Actor) ([]string, error) {
 				users := []User{
 					{Name: "Alice", Age: 25, Email: "alice@example.com"},
 					{Name: "Bob", Age: 30, Email: "bob@example.com"},
@@ -237,7 +237,7 @@ func TestResultOfComplexTypes(t *testing.T) {
 
 		// Work with maps
 		ensure.That(
-			answerable.ResultOf("user data map", func(ctx context.Context, actor verity.Actor) (map[string]interface{}, error) {
+			verity.QuestionAbout("user data map", func(ctx context.Context, actor verity.Actor) (map[string]interface{}, error) {
 				return map[string]interface{}{
 					"name":    "Jane Doe",
 					"age":     28,
@@ -255,7 +255,7 @@ func TestResultOfComplexTypes(t *testing.T) {
 
 		// Pointer operations
 		ensure.That(
-			answerable.ResultOf("pointer to string", func(ctx context.Context, actor verity.Actor) (*string, error) {
+			verity.QuestionAbout("pointer to string", func(ctx context.Context, actor verity.Actor) (*string, error) {
 				message := "Hello from pointer"
 				return &message, nil
 			}),
@@ -269,20 +269,20 @@ func TestResultOfComplexTypes(t *testing.T) {
 	)
 }
 
-// TestResultOfMixedWithStatic demonstrates mixing ResultOf with ValueOf
-func TestResultOfMixedWithStatic(t *testing.T) {
+// TestQuestionAboutMixedWithStatic demonstrates mixing QuestionAbout with ValueOf
+func TestQuestionAboutMixedWithStatic(t *testing.T) {
 	test := verity.NewVerityTest(t, verity.Scene{})
 
 	actor := test.ActorCalled("MixedTester")
 
-	// Mix of static values and ResultOf functions
+	// Mix of static values and QuestionAbout functions
 	actor.AttemptsTo(
 		// Static value
 		ensure.That(answerable.ValueOf(42), expectations.Equals(42)),
 
 		// Dynamic calculation using static values
 		ensure.That(
-			answerable.ResultOf("double calculation", func(ctx context.Context, actor verity.Actor) (int, error) {
+			verity.QuestionAbout("double calculation", func(ctx context.Context, actor verity.Actor) (int, error) {
 				staticValue := 42
 				return staticValue * 2, nil
 			}),
@@ -291,7 +291,7 @@ func TestResultOfMixedWithStatic(t *testing.T) {
 
 		// Complex calculation
 		ensure.That(
-			answerable.ResultOf("complex math", func(ctx context.Context, actor verity.Actor) (int, error) {
+			verity.QuestionAbout("complex math", func(ctx context.Context, actor verity.Actor) (int, error) {
 				a := 10
 				b := 20
 				c := a + b  // 30
@@ -304,8 +304,8 @@ func TestResultOfMixedWithStatic(t *testing.T) {
 
 		// String operations
 		ensure.That(
-			answerable.ResultOf("string building", func(ctx context.Context, actor verity.Actor) (string, error) {
-				parts := []string{"Hello", "from", "ResultOf"}
+			verity.QuestionAbout("string building", func(ctx context.Context, actor verity.Actor) (string, error) {
+				parts := []string{"Hello", "from", "QuestionAbout"}
 				result := ""
 				for i, part := range parts {
 					if i > 0 {
@@ -315,13 +315,13 @@ func TestResultOfMixedWithStatic(t *testing.T) {
 				}
 				return result, nil
 			}),
-			expectations.Equals("Hello from ResultOf"),
+			expectations.Equals("Hello from QuestionAbout"),
 		),
 	)
 }
 
-// TestResultOfEdgeCases demonstrates edge cases and special scenarios
-func TestResultOfEdgeCases(t *testing.T) {
+// TestQuestionAboutEdgeCases demonstrates edge cases and special scenarios
+func TestQuestionAboutEdgeCases(t *testing.T) {
 	test := verity.NewVerityTest(t, verity.Scene{})
 
 	actor := test.ActorCalled("EdgeCaseTester")
@@ -329,7 +329,7 @@ func TestResultOfEdgeCases(t *testing.T) {
 	actor.AttemptsTo(
 		// Empty slice
 		ensure.That(
-			answerable.ResultOf("empty slice", func(ctx context.Context, actor verity.Actor) ([]int, error) {
+			verity.QuestionAbout("empty slice", func(ctx context.Context, actor verity.Actor) ([]int, error) {
 				return []int{}, nil
 			}),
 			expectations.Equals([]int{}),
@@ -337,7 +337,7 @@ func TestResultOfEdgeCases(t *testing.T) {
 
 		// Nil pointer
 		ensure.That(
-			answerable.ResultOf("nil pointer", func(ctx context.Context, actor verity.Actor) (*int, error) {
+			verity.QuestionAbout("nil pointer", func(ctx context.Context, actor verity.Actor) (*int, error) {
 				return nil, nil
 			}),
 			expectations.Equals((*int)(nil)),
@@ -345,7 +345,7 @@ func TestResultOfEdgeCases(t *testing.T) {
 
 		// Empty string
 		ensure.That(
-			answerable.ResultOf("empty string", func(ctx context.Context, actor verity.Actor) (string, error) {
+			verity.QuestionAbout("empty string", func(ctx context.Context, actor verity.Actor) (string, error) {
 				return "", nil
 			}),
 			expectations.Equals(""),
@@ -353,21 +353,21 @@ func TestResultOfEdgeCases(t *testing.T) {
 
 		// Zero values
 		ensure.That(
-			answerable.ResultOf("zero int", func(ctx context.Context, actor verity.Actor) (int, error) {
+			verity.QuestionAbout("zero int", func(ctx context.Context, actor verity.Actor) (int, error) {
 				return 0, nil
 			}),
 			expectations.Equals(0),
 		),
 
 		ensure.That(
-			answerable.ResultOf("zero float", func(ctx context.Context, actor verity.Actor) (float64, error) {
+			verity.QuestionAbout("zero float", func(ctx context.Context, actor verity.Actor) (float64, error) {
 				return 0.0, nil
 			}),
 			expectations.Equals(0.0),
 		),
 
 		ensure.That(
-			answerable.ResultOf("zero bool", func(ctx context.Context, actor verity.Actor) (bool, error) {
+			verity.QuestionAbout("zero bool", func(ctx context.Context, actor verity.Actor) (bool, error) {
 				return false, nil
 			}),
 			expectations.Equals(false),

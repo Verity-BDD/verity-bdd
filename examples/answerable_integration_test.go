@@ -49,7 +49,7 @@ func TestAnswerableWithEnsure(t *testing.T) {
 	)
 }
 
-// TestAnswerableWithEnsureAfter demonstrates the complete integration of answerable.ResultOf
+// TestAnswerableWithEnsureAfter demonstrates the complete integration of verity.QuestionAbout
 // with ensure.That().After() assertions using the new TestContext API.
 func TestAnswerableWithEnsureAfter(t *testing.T) {
 	ctx := context.Background()
@@ -64,14 +64,14 @@ func TestAnswerableWithEnsureAfter(t *testing.T) {
 
 	actor.AttemptsTo(
 		ensure.That(
-			answerable.ResultOf("Get elapsed time immediately", getElapsedSeconds),
+			verity.QuestionAbout("Get elapsed time immediately", getElapsedSeconds),
 			expectations.Equals(0),
 		),
 	)
 
 	actor.AttemptsTo(
 		ensure.That(
-			answerable.ResultOf("Get elapsed time after delay", getElapsedSeconds),
+			verity.QuestionAbout("Get elapsed time after delay", getElapsedSeconds),
 			expectations.Equals(3),
 		).After(3 * time.Second),
 	)
