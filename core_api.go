@@ -183,8 +183,8 @@ type Task = internalcore.Task
 //		return db.QueryRow("SELECT COUNT(*) FROM users").Int()
 //	})
 //
-//	// Using NewQuestion
-//	userName := NewQuestion("current user name", func(ctx context.Context, actor Actor) (string, error) {
+//	// Using QuestionAbout
+//	userName := QuestionAbout("current user name", func(ctx context.Context, actor Actor) (string, error) {
 //		session, err := AbilityOf[auth.SessionAbility](actor)
 //		if err != nil {
 //			return "", err
@@ -435,41 +435,7 @@ var Optional = internalcore.Optional
 // AbilityName returns the readable name of the provided ability instance.
 var AbilityName = internalcore.AbilityName
 
-// NewQuestion creates a new question with the given description and ask function.
-// This is the primary factory function for creating typed questions.
-// Use this when you want explicit control over the question creation.
-//
-// Type Parameters:
-//   - T: The type of answer this question returns
-//
-// Parameters:
-//   - description: Human-readable description of what the question asks
-//   - ask: Function that takes a context and actor, returns the typed answer
-//
-// Returns:
-//   - Question[T]: A new question that returns type T when answered
-//
-// Usage Examples:
-//
-//	userCount := NewQuestion("number of users in system", func(ctx context.Context, actor Actor) (int, error) {
-//		db, err := AbilityOf[database.DatabaseAbility](actor)
-//		if err != nil {
-//			return 0, fmt.Errorf("actor needs database ability: %w", err)
-//		}
-//		return db.QueryRow("SELECT COUNT(*) FROM users").Int()
-//	})
-//
-//	count, err := userCount.AnsweredBy(ctx, actor)
-//	if err != nil {
-//		return fmt.Errorf("failed to get user count: %w", err)
-//	}
-func NewQuestion[T any](description string, ask func(ctx context.Context, actor Actor) (T, error)) Question[T] {
-	return internalcore.NewQuestion(description, ask)
-}
-
 // QuestionAbout creates a new question with the given description and ask function.
-// This is a convenience function equivalent to NewQuestion.
-// Use this as a shorter, more readable alternative when creating questions inline.
 //
 // Type Parameters:
 //   - T: The type of answer this question returns

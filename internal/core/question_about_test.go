@@ -32,9 +32,9 @@ func TestQuestionAboutCreatesQuestion(t *stdtesting.T) {
 	}
 }
 
-func TestNewQuestionDescriptionIsNotPrefixed(t *stdtesting.T) {
+func TestQuestionAboutDescriptionIsNotPrefixed(t *stdtesting.T) {
 	t.Parallel()
-	question := core.NewQuestion[string]("client record of company", func(ctx context.Context, actor core.Actor) (string, error) {
+	question := core.QuestionAbout[string]("client record of company", func(ctx context.Context, actor core.Actor) (string, error) {
 		return "ok", nil
 	})
 
