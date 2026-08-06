@@ -110,6 +110,7 @@ Activities represent actions that actors perform:
 api.SendGetRequest("/users")
 api.SendPostRequest("/posts").WithBody(postData)
 api.SendPutRequest("/users/1").WithBody(updatedUser)
+api.SendPatchRequest("/users/1").WithBody(partialUpdate)
 api.SendDeleteRequest("/posts/123")
 ```
 
