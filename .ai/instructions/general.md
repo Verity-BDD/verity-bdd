@@ -1,2 +1,2 @@
-- never do `git push` unless explicitly asked to
+- never `git push` to the `main` branch; agents may only push to side branches (`feat/*`, `fix/*`, `refactor/*`, `docs/*`, etc.) and open PRs against `main`
 - never commit plans

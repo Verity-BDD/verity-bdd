@@ -53,6 +53,9 @@ var SendPutRequest = internalapi.SendPutRequest
 // SendDeleteRequest creates a DELETE request activity with a fluent interface for the given URL.
 var SendDeleteRequest = internalapi.SendDeleteRequest
 
+// SendPatchRequest creates a PATCH request activity with a fluent interface for the given URL.
+var SendPatchRequest = internalapi.SendPatchRequest
+
 // NewResponseHeader creates a new question that retrieves the named header from the last HTTP response.
 var NewResponseHeader = internalapi.NewResponseHeader
 

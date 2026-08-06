@@ -38,3 +38,10 @@ func SendDeleteRequest(url string) *RequestActivity {
 		builder: NewRequestBuilder("DELETE", url),
 	}
 }
+
+// SendPatchRequest creates PATCH request activity with fluent interface
+func SendPatchRequest(url string) *RequestActivity {
+	return &RequestActivity{
+		builder: NewRequestBuilder("PATCH", url),
+	}
+}
