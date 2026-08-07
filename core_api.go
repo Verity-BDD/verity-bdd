@@ -436,6 +436,7 @@ var Optional = internalcore.Optional
 var AbilityName = internalcore.AbilityName
 
 // QuestionAbout creates a new question with the given description and ask function.
+// It panics if ask is nil.
 //
 // Type Parameters:
 //   - T: The type of answer this question returns

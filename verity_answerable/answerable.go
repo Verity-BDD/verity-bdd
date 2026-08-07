@@ -21,7 +21,7 @@ import (
 // Example:
 //
 //	q := ValueOf(42)
-//	result, err := q.AnsweredBy(actor) // result = 42, err = nil
+//	result, err := q.AnsweredBy(ctx, actor) // result = 42, err = nil
 func ValueOf[T any](value T) verity.Question[T] {
 	return internalanswerable.ValueOf(value)
 }
