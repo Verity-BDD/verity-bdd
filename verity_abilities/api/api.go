@@ -1,6 +1,7 @@
 package api
 
 import (
+	verity "github.com/verity-bdd/verity-bdd"
 	internalapi "github.com/verity-bdd/verity-bdd/internal/abilities/api"
 )
 
@@ -62,8 +63,8 @@ var NewResponseHeader = internalapi.NewResponseHeader
 // NewJSONPath creates a new question that extracts the value at the given JSON path from the last HTTP response body.
 var NewJSONPath = internalapi.NewJSONPath
 
-// NewResponseBodyAsJSON creates a new question that parses the last HTTP response body as JSON into type T.
-func NewResponseBodyAsJSON[T any]() internalapi.ResponseBodyAsJSON[T] {
+// LastResponseBodyAsJSON creates a question that parses the last HTTP response body as JSON into type T.
+func LastResponseBodyAsJSON[T any]() verity.Question[T] {
 	return internalapi.NewResponseBodyAsJSON[T]()
 }
 

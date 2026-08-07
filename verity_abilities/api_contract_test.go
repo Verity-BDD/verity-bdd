@@ -11,9 +11,16 @@ import (
 	ve "github.com/verity-bdd/verity-bdd/verity_expectations"
 )
 
+type apiResponse struct {
+	Message string `json:"message"`
+}
+
+func requireQuestion[T any](question verity.Question[T]) {}
+
 func TestAbilitiesAPIContractCompiles(t *testing.T) {
 	t.Parallel()
 	var _ verity.Ability = api.CallAnApiAt("https://example.com")
+	requireQuestion[apiResponse](api.LastResponseBodyAsJSON[apiResponse]())
 
 	notebook := take_notes.NewNoteBook()
 	_ = take_notes.Using(notebook)
