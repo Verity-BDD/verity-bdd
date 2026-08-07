@@ -24,7 +24,7 @@ func TestNewAPIDemonstration(t *testing.T) {
 	apiTester.AttemptsTo(
 		api.SendGetRequest("/posts"),
 		ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-		ensure.That(api.LastResponseBody{}, expectations.Contains("title")),
+		ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("title")),
 	)
 
 	// Multiple actors are supported
@@ -33,6 +33,6 @@ func TestNewAPIDemonstration(t *testing.T) {
 	user.AttemptsTo(
 		api.SendGetRequest("/users"),
 		ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-		ensure.That(api.LastResponseBody{}, expectations.Contains("email")),
+		ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("email")),
 	)
 }

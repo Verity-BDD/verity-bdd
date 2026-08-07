@@ -4,7 +4,7 @@
 //
 //	// Static values
 //	ensure.That(answerable.ValueOf(4), expectations.Equals(4))
-//	ensure.That(answerable.ValueOf("hello"), expectations.Contains("ell"))
+//	ensure.That(answerable.ValueOf("hello"), expectations.ContainsSubstring("ell"))
 //	ensure.That(answerable.ValueOf(user), expectations.HasField("Name", "John"))
 //
 // For dynamic calculations backed by a function, use verity.QuestionAbout instead.
@@ -17,7 +17,7 @@
 //
 //	// Basic types
 //	ensure.That(answerable.ValueOf(42), expectations.Equals(42))
-//	ensure.That(answerable.ValueOf("test"), expectations.Contains("es"))
+//	ensure.That(answerable.ValueOf("test"), expectations.ContainsSubstring("es"))
 //	ensure.That(answerable.ValueOf(true), expectations.Equals(true))
 //
 //	// Complex types

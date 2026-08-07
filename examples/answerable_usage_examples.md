@@ -23,7 +23,7 @@ func TestStaticValues(t *testing.T) {
     // Static scalar values
     actor.AttemptsTo(
         ensure.That(answerable.ValueOf(42), expectations.Equals(42)),
-        ensure.That(answerable.ValueOf("hello"), expectations.Contains("ell")),
+        ensure.That(answerable.ValueOf("hello"), expectations.ContainsSubstring("ell")),
         ensure.That(answerable.ValueOf(true), expectations.Equals(true)),
     )
 
@@ -37,7 +37,7 @@ func TestStaticValues(t *testing.T) {
     // Error values (treated as values, not failures)
     err := errors.New("connection failed")
     actor.AttemptsTo(
-        ensure.That(answerable.ValueOf(err.Error()), expectations.Contains("connection")),
+        ensure.That(answerable.ValueOf(err.Error()), expectations.ContainsSubstring("connection")),
     )
 }
 ```
@@ -60,7 +60,7 @@ func TestMixedQuestions(t *testing.T) {
 
         // Dynamic: Check actual API response
         ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-        ensure.That(api.LastResponseBody{}, expectations.Contains("name")),
+        ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("name")),
     )
 }
 ```

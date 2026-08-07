@@ -9,6 +9,31 @@ import (
 	"github.com/verity-bdd/verity-bdd/internal/expectations/ensure"
 )
 
+// IncludesExpectation checks if a slice includes the expected element.
+type IncludesExpectation[T any] struct {
+	expected T
+}
+
+// Evaluate evaluates the includes expectation.
+func (i IncludesExpectation[T]) Evaluate(_ context.Context, _ core.Actor, actual []T) error {
+	for _, element := range actual {
+		if reflect.DeepEqual(element, i.expected) {
+			return nil
+		}
+	}
+	return fmt.Errorf("expected slice to include %v, but got %v", i.expected, actual)
+}
+
+// Description returns the expectation description.
+func (i IncludesExpectation[T]) Description() string {
+	return fmt.Sprintf("includes %v", i.expected)
+}
+
+// Includes creates an expectation that checks whether a slice includes the expected element.
+func Includes[T any](expected T) ensure.Expectation[[]T] {
+	return IncludesExpectation[T]{expected: expected}
+}
+
 // IsEmptyExpectation checks if a value is empty (string, slice, array, or map)
 type IsEmptyExpectation[T any] struct{}
 

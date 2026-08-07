@@ -427,12 +427,12 @@ func TestUntil_NotEqualsAnswerTo_TimesOutWhenInnerQuestionAlwaysErrors(t *testin
 	}
 }
 
-func TestUntil_ContainsAnswerTo_RetriesOnTransientInnerQuestionError(t *testing.T) {
+func TestUntil_ContainsSubstringAnswerTo_RetriesOnTransientInnerQuestionError(t *testing.T) {
 	t.Parallel()
 	outerQ := &sequenceQuestion[string]{values: []string{"hello world"}}
 	innerQ := &errorThenValueQuestion[string]{errCount: 2, value: "world"}
 
-	activity := wait.Until(outerQ, expectations.ContainsAnswerTo(innerQ)).
+	activity := wait.Until(outerQ, expectations.ContainsSubstringAnswerTo(innerQ)).
 		CheckingEvery(1 * time.Millisecond)
 
 	err := activity.PerformAs(context.Background(), &stubActor{})

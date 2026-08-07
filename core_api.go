@@ -203,7 +203,7 @@ type Task = internalcore.Task
 //	// With expectations (recommended)
 //	actor.AttemptsTo(
 //		ensure.That(userCount, expectations.GreaterThan(0)),
-//		ensure.That(userName, expectations.Contains("admin")),
+//		ensure.That(userName, expectations.ContainsSubstring("admin")),
 //	)
 //
 // Thread Safety:

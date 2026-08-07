@@ -249,7 +249,7 @@ func TestFileOperations(t *testing.T) {
     // Используем Activities
     err := actor.AttemptsTo(
         custom.WriteFile("test.txt", "Hello, World!"),
-        ensure.That(custom.FileContent("test.txt"), expectations.Contains("Hello")),
+        ensure.That(custom.FileContent("test.txt"), expectations.ContainsSubstring("Hello")),
     )
 
     require.NoError(t, err)
@@ -273,7 +273,7 @@ func TestAPIAndFileOperations(t *testing.T) {
         // Затем сохраняем их в файл
         custom.WriteFile("user.json", api.LastResponseBody{}),
         // Проверяем содержимое файла
-        ensure.That(custom.FileContent("user.json"), expectations.Contains("name")),
+        ensure.That(custom.FileContent("user.json"), expectations.ContainsSubstring("name")),
     )
 
     require.NoError(t, err)

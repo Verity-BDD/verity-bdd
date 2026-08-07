@@ -94,7 +94,7 @@ type VerityTest interface {
 //		actor.AttemptsTo(
 //			api.SendGetRequest("/posts"),
 //			ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-//			ensure.That(api.LastResponseBody{}, expectations.Contains("title")),
+//			ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("title")),
 //		)
 //	}
 //
