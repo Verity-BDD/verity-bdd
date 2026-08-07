@@ -62,7 +62,7 @@ func TestAPI(t *testing.T) {
         api.SendPostRequest("/posts").
             WithBody(newPost),
         ensure.That(api.LastResponseStatus{}, expectations.Equals(201)),
-        ensure.That(api.LastResponseBody{}, expectations.Contains("Test Post")),
+        ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("Test Post")),
     )
 }
 ```
@@ -142,8 +142,8 @@ Questions retrieve information from the system:
 ```go
 // Basic built-in questions
 ensure.That(api.LastResponseStatus{}, expectations.Equals(200))
-ensure.That(api.LastResponseBody{}, expectations.Contains("success"))
-ensure.That(api.NewResponseHeader("content-type"), expectations.Contains("json"))
+ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("success"))
+ensure.That(api.NewResponseHeader("content-type"), expectations.ContainsSubstring("json"))
 
 // Advanced questions with JSON parsing
 type User struct {
@@ -168,8 +168,8 @@ err := actor.AttemptsTo(
     })),
 
     // JSONPath queries
-    ensure.That(api.NewJSONPath("name"), expectations.Contains("John")),
-    ensure.That(api.NewJSONPath("data.users.*.email"), expectations.Contains("@")),
+    ensure.That(api.NewJSONPath("name"), expectations.ContainsSubstring("John")),
+    ensure.That(api.NewJSONPath("data.users.*.email"), expectations.ContainsSubstring("@")),
 
     // Response time validation
     ensure.That(api.ResponseTime{}, expectations.IsLessThan(1000)), // milliseconds
@@ -182,7 +182,8 @@ Verify that expectations are met:
 
 ```go
 ensure.That(question, expectations.Equals(expected))
-ensure.That(question, expectations.Contains(substring))
+ensure.That(question, expectations.ContainsSubstring(substring))
+ensure.That(itemsQuestion, expectations.Includes(expectedItem))
 ensure.That(question, expectations.IsEmpty())
 ensure.That(question, expectations.ArrayLengthEquals(5))
 ensure.That(question, expectations.IsGreaterThan(10))
@@ -265,8 +266,8 @@ err := actor.AttemptsTo(
     api.SendGetRequest("/posts/1").
         WithHeader("Accept", "application/json"),
     ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-    ensure.That(api.LastResponseBody{}, expectations.Contains("title")),
-    ensure.That(api.NewResponseHeader("content-type"), expectations.Contains("json")),
+    ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("title")),
+    ensure.That(api.NewResponseHeader("content-type"), expectations.ContainsSubstring("json")),
 )
 ```
 

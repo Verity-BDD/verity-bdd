@@ -23,7 +23,7 @@ func TestAnswerableWithEnsure(t *testing.T) {
 	// Basic type assertions with static values
 	actor.AttemptsTo(
 		ensure.That(answerable.ValueOf(42), expectations.Equals(42)),
-		ensure.That(answerable.ValueOf("hello"), expectations.Contains("ell")),
+		ensure.That(answerable.ValueOf("hello"), expectations.ContainsSubstring("ell")),
 		ensure.That(answerable.ValueOf(true), expectations.Equals(true)),
 	)
 
@@ -45,7 +45,7 @@ func TestAnswerableWithEnsure(t *testing.T) {
 
 	// Simple assertions that definitely work
 	actor.AttemptsTo(
-		ensure.That(answerable.ValueOf("test string"), expectations.Contains("test")),
+		ensure.That(answerable.ValueOf("test string"), expectations.ContainsSubstring("test")),
 	)
 }
 

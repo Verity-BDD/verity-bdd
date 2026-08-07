@@ -47,7 +47,7 @@ import (
 //
 //	actor.AttemptsTo(
 //		ensure.That(userCount, expectations.GreaterThan(0)),
-//		ensure.That(userName, expectations.Contains("admin")),
+//		ensure.That(userName, expectations.ContainsSubstring("admin")),
 //		ensure.That(userProfile, expectations.HasField("Email", expectations.IsNotEmpty())),
 //	)
 //

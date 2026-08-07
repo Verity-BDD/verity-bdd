@@ -10,18 +10,13 @@ import (
 	"github.com/verity-bdd/verity-bdd/internal/expectations/ensure"
 )
 
-// ContainsExpectation checks if a string contains the expected substring
-type ContainsExpectation struct {
+// ContainsSubstringExpectation checks if a string contains the expected substring
+type ContainsSubstringExpectation struct {
 	substring string
 }
 
-// NewContains creates a new Contains expectation
-func NewContains(substring string) ensure.Expectation[string] {
-	return ContainsExpectation{substring: substring}
-}
-
 // Evaluate evaluates the contains expectation
-func (c ContainsExpectation) Evaluate(_ context.Context, _ core.Actor, actual string) error {
+func (c ContainsSubstringExpectation) Evaluate(_ context.Context, _ core.Actor, actual string) error {
 	if actual == "" {
 		return fmt.Errorf("expected string to contain '%s', but got empty string", c.substring)
 	}
@@ -32,13 +27,13 @@ func (c ContainsExpectation) Evaluate(_ context.Context, _ core.Actor, actual st
 }
 
 // Description returns the expectation description
-func (c ContainsExpectation) Description() string {
+func (c ContainsSubstringExpectation) Description() string {
 	return fmt.Sprintf("contains '%s'", c.substring)
 }
 
-// Convenience function for creating Contains expectations
-func Contains(substring string) ensure.Expectation[string] {
-	return NewContains(substring)
+// ContainsSubstring checks if a string contains the expected substring.
+func ContainsSubstring(substring string) ensure.Expectation[string] {
+	return ContainsSubstringExpectation{substring: substring}
 }
 
 // ContainsKeyExpectation checks if a map contains the expected key
@@ -84,31 +79,31 @@ func ContainsKey(key string) ensure.Expectation[interface{}] {
 	return NewContainsKey(key)
 }
 
-// ContainsAnswerToExpectation checks if a string contains the answer to a question as a substring
-type ContainsAnswerToExpectation struct {
+// ContainsSubstringAnswerToExpectation checks if a string contains the answer to a question as a substring
+type ContainsSubstringAnswerToExpectation struct {
 	question core.Question[string]
 }
 
-// Evaluate answers the question, then delegates to ContainsExpectation
-func (c ContainsAnswerToExpectation) Evaluate(ctx context.Context, actor core.Actor, actual string) error {
+// Evaluate answers the question, then delegates to ContainsSubstringExpectation
+func (c ContainsSubstringAnswerToExpectation) Evaluate(ctx context.Context, actor core.Actor, actual string) error {
 	expected, err := c.question.AnsweredBy(ctx, actor)
 	if err != nil {
 		return newQuestionResolutionError(c.question.Description(), err)
 	}
-	return ContainsExpectation{substring: expected}.Evaluate(ctx, actor, actual)
+	return ContainsSubstringExpectation{substring: expected}.Evaluate(ctx, actor, actual)
 }
 
 // Description returns the expectation description
-func (c ContainsAnswerToExpectation) Description() string {
+func (c ContainsSubstringAnswerToExpectation) Description() string {
 	return fmt.Sprintf("contains the answer to '%s'", c.question.Description())
 }
 
-// ContainsAnswerTo checks if a string contains the answer to the given question as a substring.
+// ContainsSubstringAnswerTo checks if a string contains the answer to the given question as a substring.
 // When used in a polling activity (e.g. wait.Until), the expected-value question is
 // re-answered on every poll tick. To use a fixed expected value, resolve the question
-// once and pass the result to Contains instead.
-func ContainsAnswerTo(q core.Question[string]) ensure.Expectation[string] {
-	return ContainsAnswerToExpectation{question: q}
+// once and pass the result to ContainsSubstring instead.
+func ContainsSubstringAnswerTo(q core.Question[string]) ensure.Expectation[string] {
+	return ContainsSubstringAnswerToExpectation{question: q}
 }
 
 // ContainsKeyAnswerToExpectation checks if a map contains the answer to a question as a key

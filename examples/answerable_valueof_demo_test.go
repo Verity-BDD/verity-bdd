@@ -29,7 +29,7 @@ func TestAnswerableValueOf(t *testing.T) {
 	actor.AttemptsTo(
 		ensure.That(answerable.ValueOf(42), expectations.Equals(42)),
 		ensure.That(answerable.ValueOf(3.14), expectations.Equals(3.14)),
-		ensure.That(answerable.ValueOf("hello"), expectations.Contains("hell")),
+		ensure.That(answerable.ValueOf("hello"), expectations.ContainsSubstring("hell")),
 		ensure.That(answerable.ValueOf(true), expectations.Equals(true)),
 	)
 
@@ -47,7 +47,7 @@ func TestAnswerableValueOf(t *testing.T) {
 	// Error values - check error message as string
 	err := errors.New("connection failed")
 	actor.AttemptsTo(
-		ensure.That(answerable.ValueOf(err.Error()), expectations.Contains("connection")),
+		ensure.That(answerable.ValueOf(err.Error()), expectations.ContainsSubstring("connection")),
 	)
 }
 
@@ -72,10 +72,10 @@ func TestAnswerableWithMixedQuestions(t *testing.T) {
 		ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
 
 		// Static: Check response contains expected content
-		ensure.That(api.LastResponseBody{}, expectations.Contains("title")),
+		ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("title")),
 
 		// Static: Verify expected response structure
-		ensure.That(answerable.ValueOf("userId"), expectations.Contains("user")),
+		ensure.That(answerable.ValueOf("userId"), expectations.ContainsSubstring("user")),
 	)
 }
 
@@ -92,8 +92,8 @@ func TestAnswerableDescriptions(t *testing.T) {
 	// "error something went wrong (error)"
 	actor.AttemptsTo(
 		ensure.That(answerable.ValueOf(42), expectations.Equals(42)),
-		ensure.That(answerable.ValueOf("hello"), expectations.Contains("hell")),
-		ensure.That(answerable.ValueOf(errors.New("something went wrong").Error()), expectations.Contains("something")),
+		ensure.That(answerable.ValueOf("hello"), expectations.ContainsSubstring("hell")),
+		ensure.That(answerable.ValueOf(errors.New("something went wrong").Error()), expectations.ContainsSubstring("something")),
 	)
 }
 

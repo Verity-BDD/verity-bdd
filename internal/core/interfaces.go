@@ -81,7 +81,7 @@
 //
 //	// Questions can be used directly or with expectations
 //	actor.AttemptsTo(
-//		ensure.That(userName, expectations.Contains("John")),
+//		ensure.That(userName, expectations.ContainsSubstring("John")),
 //		ensure.That(userProfile, expectations.HasField("Email", expectations.IsNotEmpty())),
 //	)
 //
@@ -585,7 +585,7 @@ type Task interface {
 //	// With expectations (recommended)
 //	actor.AttemptsTo(
 //		ensure.That(userCount, expectations.GreaterThan(0)),
-//		ensure.That(userName, expectations.Contains("admin")),
+//		ensure.That(userName, expectations.ContainsSubstring("admin")),
 //	)
 //
 // Question Examples:

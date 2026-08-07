@@ -22,14 +22,14 @@ func TestJSONPlaceholderBasicsNewAPI(t *testing.T) {
 	apiTester.AttemptsTo(
 		api.SendGetRequest("/posts"),
 		ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-		ensure.That(api.LastResponseBody{}, expectations.Contains("title")),
+		ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("title")),
 	)
 
 	// Test GET users - should return existing users
 	apiTester.AttemptsTo(
 		api.SendGetRequest("/users"),
 		ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-		ensure.That(api.LastResponseBody{}, expectations.Contains("email")),
+		ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("email")),
 	)
 
 	// The console output will now show detailed step-by-step execution

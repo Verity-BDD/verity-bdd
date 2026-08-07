@@ -32,7 +32,7 @@ func TestQuestionAbout(t *testing.T) {
 			verity.QuestionAbout("greeting message", func(ctx context.Context, actor verity.Actor) (string, error) {
 				return "Hello, " + actor.Name(), nil
 			}),
-			expectations.Contains("Hello, QuestionAboutTester"),
+			expectations.ContainsSubstring("Hello, QuestionAboutTester"),
 		),
 
 		// Boolean logic

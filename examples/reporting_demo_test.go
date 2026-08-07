@@ -28,14 +28,14 @@ func TestConsoleReportingDemo(t *testing.T) {
 	apiTester.AttemptsTo(
 		api.SendGetRequest("/posts"),
 		ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-		ensure.That(api.LastResponseBody{}, expectations.Contains("title")),
+		ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("title")),
 	)
 
 	// Another sequence to demonstrate step tracking
 	apiTester.AttemptsTo(
 		api.SendGetRequest("/posts/1"),
 		ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-		ensure.That(api.LastResponseBody{}, expectations.Contains("userId")),
+		ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("userId")),
 	)
 }
 

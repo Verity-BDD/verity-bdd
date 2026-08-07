@@ -466,8 +466,8 @@ func TestYourAbility_WithActor_BasicUsage(t *testing.T) {
 
     err := actor.AttemptsTo(
         DoSomething("test param"),
-        assertions.That(Status(), expectations.Contains("connected")),
-        assertions.That(LastOperation(), expectations.Contains("do_something")),
+        assertions.That(Status(), expectations.ContainsSubstring("connected")),
+        assertions.That(LastOperation(), expectations.ContainsSubstring("do_something")),
     )
 
     // В зависимости от реализации, может быть ошибка или успех

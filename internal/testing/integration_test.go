@@ -33,7 +33,7 @@ func TestReportingIntegration(t *testing.T) {
 	apiTester.AttemptsTo(
 		api.SendGetRequest("/posts/1"),
 		ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-		ensure.That(api.LastResponseBody{}, expectations.Contains("title")),
+		ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("title")),
 	)
 
 	// Get the captured output
@@ -135,7 +135,7 @@ func TestComplexWorkflowReporting(t *testing.T) {
 			"userId": 1,
 		}),
 		ensure.That(api.LastResponseStatus{}, expectations.Equals(201)),
-		ensure.That(api.LastResponseBody{}, expectations.Contains("Test Post")),
+		ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("Test Post")),
 	)
 
 	// Get the captured output

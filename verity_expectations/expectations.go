@@ -8,8 +8,10 @@ import (
 	"github.com/verity-bdd/verity-bdd/verity_expectations/ensure"
 )
 
-// Contains checks if a string contains the expected substring.
-var Contains = internalexpectations.Contains
+// ContainsSubstring checks if a string contains the expected substring.
+func ContainsSubstring(substring string) ensure.Expectation[string] {
+	return internalexpectations.ContainsSubstring(substring)
+}
 
 // ContainsKey checks if a map contains the expected key.
 var ContainsKey = internalexpectations.ContainsKey
@@ -23,6 +25,11 @@ var IsLessThan = internalexpectations.IsLessThan
 // IsEmpty checks if a value is empty (string, slice, array, or map).
 func IsEmpty[T any]() ensure.Expectation[T] {
 	return internalexpectations.IsEmpty[T]()
+}
+
+// Includes checks if a slice includes the expected element.
+func Includes[T any](expected T) ensure.Expectation[[]T] {
+	return internalexpectations.Includes(expected)
 }
 
 // ArrayLengthEquals checks if an array, slice, or string has the expected length.
@@ -63,9 +70,9 @@ func EqualsAnswerTo[T any](q verity.Question[T]) ensure.Expectation[T] {
 	return internalexpectations.EqualsAnswerTo(q)
 }
 
-// ContainsAnswerTo checks if a string contains the answer to the given question as a substring.
-func ContainsAnswerTo(q verity.Question[string]) ensure.Expectation[string] {
-	return internalexpectations.ContainsAnswerTo(q)
+// ContainsSubstringAnswerTo checks if a string contains the answer to the given question as a substring.
+func ContainsSubstringAnswerTo(q verity.Question[string]) ensure.Expectation[string] {
+	return internalexpectations.ContainsSubstringAnswerTo(q)
 }
 
 // ContainsKeyAnswerTo checks if a map contains the answer to the given question as a key.
