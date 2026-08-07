@@ -207,9 +207,9 @@ func TestUntil_Description(t *testing.T) {
 	q := &sequenceQuestion[int]{values: []int{0}}
 	activity := wait.Until(q, expectations.Equals(1)).For(30 * time.Second)
 
-	desc := activity.Description()
-	if !containsAll(desc, "30s", "test question") {
-		t.Fatalf("unexpected description: %q", desc)
+	const expected = "#actor waits up to 30s to ensure test question equals 1"
+	if actual := activity.Description(); actual != expected {
+		t.Fatalf("expected description %q, got %q", expected, actual)
 	}
 }
 
