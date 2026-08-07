@@ -20,4 +20,8 @@ func TestRootAPIContractCompiles(t *testing.T) {
 	})
 
 	_, _ = q.AnsweredBy(context.Background(), nil)
+
+	test := verity.NewVerityTest(t, verity.Scene{})
+	var actors []verity.Actor = test.Actors() //nolint:staticcheck // Explicitly verifies the public return type.
+	_ = actors
 }
