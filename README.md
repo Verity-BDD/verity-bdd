@@ -157,7 +157,7 @@ err := actor.AttemptsTo(
     ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
 
     // Parse response as JSON struct
-    ensure.That(api.NewResponseBodyAsJSON[User](), expectations.Satisfies("has valid user", func(actual User) error {
+    ensure.That(api.LastResponseBodyAsJSON[User](), expectations.Satisfies("has valid user", func(actual User) error {
         if actual.Name == "" {
             return fmt.Errorf("user name is empty")
         }
