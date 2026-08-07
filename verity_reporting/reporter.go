@@ -31,10 +31,16 @@ type TestRunnerAdapter = internalreporting.TestRunnerAdapter
 type ActivityTracker = internalreporting.ActivityTracker
 
 // NewTestRunnerAdapter creates a new test runner adapter.
-var NewTestRunnerAdapter = internalreporting.NewTestRunnerAdapter
+func NewTestRunnerAdapter(reporter Reporter) *TestRunnerAdapter {
+	return internalreporting.NewTestRunnerAdapter(reporter)
+}
 
 // NewActivityTracker creates a new activity tracker.
-var NewActivityTracker = internalreporting.NewActivityTracker
+func NewActivityTracker(reporter Reporter, activity string) *ActivityTracker {
+	return internalreporting.NewActivityTracker(reporter, activity)
+}
 
 // NewActivityTrackerWithActor creates a new activity tracker with an actor name.
-var NewActivityTrackerWithActor = internalreporting.NewActivityTrackerWithActor
+func NewActivityTrackerWithActor(reporter Reporter, activity, actorName string) *ActivityTracker {
+	return internalreporting.NewActivityTrackerWithActor(reporter, activity, actorName)
+}

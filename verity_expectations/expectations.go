@@ -14,13 +14,19 @@ func ContainsSubstring(substring string) ensure.Expectation[string] {
 }
 
 // ContainsKey checks if a map contains the expected key.
-var ContainsKey = internalexpectations.ContainsKey
+func ContainsKey(key string) ensure.Expectation[interface{}] {
+	return internalexpectations.ContainsKey(key)
+}
 
 // IsGreaterThan checks if a numeric value is greater than the expected value.
-var IsGreaterThan = internalexpectations.IsGreaterThan
+func IsGreaterThan(expected interface{}) ensure.Expectation[interface{}] {
+	return internalexpectations.IsGreaterThan(expected)
+}
 
 // IsLessThan checks if a numeric value is less than the expected value.
-var IsLessThan = internalexpectations.IsLessThan
+func IsLessThan(expected interface{}) ensure.Expectation[interface{}] {
+	return internalexpectations.IsLessThan(expected)
+}
 
 // IsEmpty checks if a value is empty (string, slice, array, or map).
 func IsEmpty[T any]() ensure.Expectation[T] {

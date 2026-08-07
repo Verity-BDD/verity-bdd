@@ -358,7 +358,9 @@ const (
 //		Do("authenticates with API", authenticate),
 //		Do("verifies session", verifySession),
 //	)
-var Do = internalcore.Do
+func Do(description string, perform func(context.Context, Actor) error) Interaction {
+	return internalcore.Do(description, perform)
+}
 
 // TaskWhere creates a new task with the given description and activities.
 // This is the factory function for creating composed tasks that represent
@@ -383,7 +385,9 @@ var Do = internalcore.Do
 //	if err != nil {
 //		return fmt.Errorf("test workflow failed: %w", err)
 //	}
-var TaskWhere = internalcore.TaskWhere
+func TaskWhere(description string, activities ...Activity) Task {
+	return internalcore.TaskWhere(description, activities...)
+}
 
 // Critical returns a failure mode that stops execution on failure.
 // This is a semantic function that returns FailFast mode.
@@ -398,7 +402,9 @@ var TaskWhere = internalcore.TaskWhere
 //		Do("establishes database connection", connectDB).WithFailureMode(Critical()),
 //		Do("creates user account", createUser),
 //	)
-var Critical = internalcore.Critical
+func Critical() FailureMode {
+	return internalcore.Critical()
+}
 
 // NonCritical returns a failure mode that logs errors but continues.
 // This is a semantic function that returns ErrorButContinue mode.
@@ -414,7 +420,9 @@ var Critical = internalcore.Critical
 //		Do("collects usage metrics", collectMetrics).WithFailureMode(NonCritical()),
 //		Do("verifies result", verifyResult),
 //	)
-var NonCritical = internalcore.NonCritical
+func NonCritical() FailureMode {
+	return internalcore.NonCritical()
+}
 
 // Optional returns a failure mode that ignores errors completely.
 // This is a semantic function that returns Ignore mode.
@@ -430,10 +438,14 @@ var NonCritical = internalcore.NonCritical
 //		Do("attempts to cleanup resources", cleanup).WithFailureMode(Optional()),
 //		Do("final assertion", finalAssertion),
 //	)
-var Optional = internalcore.Optional
+func Optional() FailureMode {
+	return internalcore.Optional()
+}
 
 // AbilityName returns the readable name of the provided ability instance.
-var AbilityName = internalcore.AbilityName
+func AbilityName(ability Ability) string {
+	return internalcore.AbilityName(ability)
+}
 
 // QuestionAbout creates a new question with the given description and ask function.
 // It panics if ask is nil.

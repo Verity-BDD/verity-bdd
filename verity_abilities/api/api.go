@@ -1,6 +1,8 @@
 package api
 
 import (
+	"net/http"
+
 	verity "github.com/verity-bdd/verity-bdd"
 	internalapi "github.com/verity-bdd/verity-bdd/internal/abilities/api"
 )
@@ -30,38 +32,60 @@ type JSONPath = internalapi.JSONPath
 type ResponseTime = internalapi.ResponseTime
 
 // Using creates a new CallAnAPI ability with the given HTTP client.
-var Using = internalapi.Using
+func Using(client *http.Client) CallAnAPI {
+	return internalapi.Using(client)
+}
 
 // CallAnApiAt creates a new CallAnAPI ability with the given base URL.
 // Panics if the base URL is invalid.
-var CallAnApiAt = internalapi.CallAnApiAt
+func CallAnApiAt(baseURL string) CallAnAPI {
+	return internalapi.CallAnApiAt(baseURL)
+}
 
 // NewRequestBuilder creates a new request builder for the given HTTP method and URL.
-var NewRequestBuilder = internalapi.NewRequestBuilder
+func NewRequestBuilder(method, url string) *RequestBuilder {
+	return internalapi.NewRequestBuilder(method, url)
+}
 
 // SendRequest creates an activity that sends the given HTTP request.
-var SendRequest = internalapi.SendRequest
+func SendRequest(request *http.Request) verity.Activity {
+	return internalapi.SendRequest(request)
+}
 
 // SendGetRequest creates a GET request activity with a fluent interface for the given URL.
-var SendGetRequest = internalapi.SendGetRequest
+func SendGetRequest(url string) *RequestActivity {
+	return internalapi.SendGetRequest(url)
+}
 
 // SendPostRequest creates a POST request activity with a fluent interface for the given URL.
-var SendPostRequest = internalapi.SendPostRequest
+func SendPostRequest(url string) *RequestActivity {
+	return internalapi.SendPostRequest(url)
+}
 
 // SendPutRequest creates a PUT request activity with a fluent interface for the given URL.
-var SendPutRequest = internalapi.SendPutRequest
+func SendPutRequest(url string) *RequestActivity {
+	return internalapi.SendPutRequest(url)
+}
 
 // SendDeleteRequest creates a DELETE request activity with a fluent interface for the given URL.
-var SendDeleteRequest = internalapi.SendDeleteRequest
+func SendDeleteRequest(url string) *RequestActivity {
+	return internalapi.SendDeleteRequest(url)
+}
 
 // SendPatchRequest creates a PATCH request activity with a fluent interface for the given URL.
-var SendPatchRequest = internalapi.SendPatchRequest
+func SendPatchRequest(url string) *RequestActivity {
+	return internalapi.SendPatchRequest(url)
+}
 
 // NewResponseHeader creates a new question that retrieves the named header from the last HTTP response.
-var NewResponseHeader = internalapi.NewResponseHeader
+func NewResponseHeader(key string) ResponseHeader {
+	return internalapi.NewResponseHeader(key)
+}
 
 // NewJSONPath creates a new question that extracts the value at the given JSON path from the last HTTP response body.
-var NewJSONPath = internalapi.NewJSONPath
+func NewJSONPath(path string) JSONPath {
+	return internalapi.NewJSONPath(path)
+}
 
 // LastResponseBodyAsJSON creates a question that parses the last HTTP response body as JSON into type T.
 func LastResponseBodyAsJSON[T any]() verity.Question[T] {

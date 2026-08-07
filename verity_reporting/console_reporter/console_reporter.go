@@ -4,4 +4,6 @@ import internalconsole "github.com/verity-bdd/verity-bdd/internal/reporting/cons
 
 type ConsoleReporter = internalconsole.ConsoleReporter
 
-var NewConsoleReporter = internalconsole.NewConsoleReporter
+func NewConsoleReporter() *ConsoleReporter {
+	return internalconsole.NewConsoleReporter()
+}
