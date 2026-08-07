@@ -13,22 +13,34 @@ type TakeNotesAbility = internalnotes.TakeNotesAbility
 type NoteBook = internalnotes.NoteBook
 
 // UsingEmptyNotepad returns a new ability instance with an empty notepad.
-var UsingEmptyNotepad = internalnotes.UsingEmptyNotepad
+func UsingEmptyNotepad() verity.Ability {
+	return internalnotes.UsingEmptyNotepad()
+}
 
 // Using returns an ability that stores notes in the provided notepad.
-var Using = internalnotes.Using
+func Using(notepad *NoteBook) verity.Ability {
+	return internalnotes.Using(notepad)
+}
 
 // NewNoteBook creates a new empty NoteBook.
-var NewNoteBook = internalnotes.NewNoteBook
+func NewNoteBook() *NoteBook {
+	return internalnotes.NewNoteBook()
+}
 
 // NotepadWith creates a notepad pre-filled with the provided values.
-var NotepadWith = internalnotes.NotepadWith
+func NotepadWith(initial map[string]any) *NoteBook {
+	return internalnotes.NotepadWith(initial)
+}
 
 // TakeNoteOf starts a TakeNote activity definition for the given value.
-var TakeNoteOf = internalnotes.TakeNoteOf
+func TakeNoteOf(value any) interface{ As(string) verity.Activity } {
+	return internalnotes.TakeNoteOf(value)
+}
 
 // NoteValue returns an untyped question that retrieves the note stored under the given key.
-var NoteValue = internalnotes.NoteValue
+func NoteValue(key string) verity.Question[any] {
+	return internalnotes.NoteValue(key)
+}
 
 // Note returns a typed question that retrieves the note stored under the given key as type T.
 func Note[T any](key string) verity.Question[T] {

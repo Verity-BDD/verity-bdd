@@ -1,7 +1,10 @@
 package verity
 
 import (
+	"context"
+
 	internaltesting "github.com/verity-bdd/verity-bdd/internal/testing"
+	reporting "github.com/verity-bdd/verity-bdd/verity_reporting"
 )
 
 // ReporterProvider provides access to reporter adapter.
@@ -37,10 +40,16 @@ type VerityTest = internaltesting.VerityTest
 type TestContext = internaltesting.TestContext
 
 // NewVerityTest creates a new VerityTest instance.
-var NewVerityTest = internaltesting.NewVerityTest
+func NewVerityTest(t TestContext, scene Scene) VerityTest {
+	return internaltesting.NewVerityTest(t, scene)
+}
 
 // NewVerityTestWithContext creates a new VerityTest instance using the provided context.
-var NewVerityTestWithContext = internaltesting.NewVerityTestWithContext
+func NewVerityTestWithContext(ctx context.Context, t TestContext) VerityTest {
+	return internaltesting.NewVerityTestWithContext(ctx, t)
+}
 
 // NewVerityTestWithReporter creates a new VerityTest instance with a reporter.
-var NewVerityTestWithReporter = internaltesting.NewVerityTestWithReporter
+func NewVerityTestWithReporter(ctx context.Context, t TestContext, reporter reporting.Reporter) VerityTest {
+	return internaltesting.NewVerityTestWithReporter(ctx, t, reporter)
+}

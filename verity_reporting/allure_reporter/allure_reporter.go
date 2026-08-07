@@ -4,4 +4,6 @@ import internalallure "github.com/verity-bdd/verity-bdd/internal/reporting/allur
 
 type AllureReporter = internalallure.AllureReporter
 
-var NewAllureReporterWithDir = internalallure.NewAllureReporterWithDir
+func NewAllureReporterWithDir(dir string) *AllureReporter {
+	return internalallure.NewAllureReporterWithDir(dir)
+}
