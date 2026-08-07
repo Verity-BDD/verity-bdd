@@ -19,13 +19,13 @@ import (
 // Usage Examples:
 //
 //	// Create a question using QuestionAbout
-//	userCount := core.QuestionAbout[int]("number of users", func(actor core.Actor, _ context.Context) (int, error) {
+//	userCount := core.QuestionAbout[int]("number of users", func(_ context.Context, actor core.Actor) (int, error) {
 //		db := actor.AbilityTo(&database.DatabaseAbility{}).(database.DatabaseAbility)
 //		return db.QueryRow("SELECT COUNT(*) FROM users").Int()
 //	})
 //
 //	// Another question using QuestionAbout
-//	userName := core.QuestionAbout("current user name", func(actor core.Actor, _ context.Context) (string, error) {
+//	userName := core.QuestionAbout("current user name", func(_ context.Context, actor core.Actor) (string, error) {
 //		session := actor.AbilityTo(&auth.SessionAbility{}).(auth.SessionAbility)
 //		return session.GetCurrentUser().Name
 //	})
@@ -40,8 +40,8 @@ import (
 //	var isActive bool
 //
 //	// Each question returns its specific type
-//	count, err := userCount.AnsweredBy(actor)    // int, error
-//	name, err := userName.AnsweredBy(actor)      // string, error
+//	count, err := userCount.AnsweredBy(ctx, actor)    // int, error
+//	name, err := userName.AnsweredBy(ctx, actor)      // string, error
 //
 // Using Questions with Expectations:
 //
@@ -82,8 +82,8 @@ func (q *question[T]) Description() string {
 // This method executes the ask function provided to QuestionAbout().
 //
 // Parameters:
-//   - actor: The actor asking the question
 //   - ctx: Context for cancellation and timeout
+//   - actor: The actor asking the question
 //
 // Returns:
 //   - T: The typed answer to the question
@@ -91,13 +91,13 @@ func (q *question[T]) Description() string {
 //
 // Example:
 //
-//	func (q *userCountQuestion) AnsweredBy(actor core.Actor, ctx context.Context) (int, error) {
-//		return q.ask(actor, ctx)
+//	func (q *userCountQuestion) AnsweredBy(ctx context.Context, actor core.Actor) (int, error) {
+//		return q.ask(ctx, actor)
 //	}
 //
 // Usage:
 //
-//	count, err := question.AnsweredBy(actor, ctx)
+//	count, err := question.AnsweredBy(ctx, actor)
 //	if err != nil {
 //		return fmt.Errorf("failed to answer question '%s': %w", question.Description(), err)
 //	}
@@ -108,6 +108,7 @@ func (q *question[T]) AnsweredBy(ctx context.Context, actor Actor) (T, error) {
 
 // QuestionAbout creates a new question with the given description and ask function.
 // This is the factory function for creating typed questions.
+// It panics if ask is nil.
 //
 // Type Parameters:
 //   - T: The type of answer this question returns
@@ -134,6 +135,10 @@ func (q *question[T]) AnsweredBy(ctx context.Context, actor Actor) (T, error) {
 //		ensure.That(isHealthy, expectations.IsTrue()),
 //	)
 func QuestionAbout[T any](description string, ask func(ctx context.Context, actor Actor) (T, error)) Question[T] {
+	if ask == nil {
+		panic("QuestionAbout: function parameter cannot be nil")
+	}
+
 	return &question[T]{
 		description: description,
 		ask:         ask,
