@@ -3,12 +3,15 @@ package testing
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/verity-bdd/verity-bdd/internal/abilities"
+	"github.com/verity-bdd/verity-bdd/internal/core"
 	"github.com/verity-bdd/verity-bdd/internal/reporting"
 	"github.com/verity-bdd/verity-bdd/internal/reporting/console_reporter"
 	reportingMocks "github.com/verity-bdd/verity-bdd/internal/reporting/mocks"
@@ -324,4 +327,223 @@ func TestNewVerityNames(t *testing.T) {
 
 	withReporter := NewVerityTestWithReporter(ctx, t, console_reporter.NewConsoleReporter())
 	require.NotNil(t, withReporter)
+}
+
+func TestVerityTestActors_EmptySnapshotIsNonNil(t *testing.T) {
+	t.Parallel()
+	test := NewVerityTest(t, Scene{})
+
+	actors := test.Actors()
+
+	require.NotNil(t, actors)
+	require.Empty(t, actors)
+}
+
+func TestVerityTestActors_IncludesEveryRegisteredActorInstance(t *testing.T) {
+	t.Parallel()
+	test := NewVerityTest(t, Scene{})
+	emptyName := test.ActorCalled("")
+	alice := test.ActorCalled("Alice")
+
+	actors := test.Actors()
+
+	require.Len(t, actors, 2)
+	require.Contains(t, actors, emptyName)
+	require.Contains(t, actors, alice)
+	require.Same(t, emptyName, actors[0])
+	require.Same(t, alice, actors[1])
+}
+
+func TestVerityTestActors_SortsUniqueActorsByCaseSensitiveName(t *testing.T) {
+	t.Parallel()
+	test := NewVerityTest(t, Scene{})
+	bob := test.ActorCalled("bob")
+	aliceUpper := test.ActorCalled("Alice")
+	aliceLower := test.ActorCalled("alice")
+	require.Same(t, aliceUpper, test.ActorCalled("Alice"))
+
+	actors := test.Actors()
+
+	require.Len(t, actors, 3)
+	require.Equal(t, []string{"Alice", "alice", "bob"}, []string{actors[0].Name(), actors[1].Name(), actors[2].Name()})
+	require.Same(t, aliceUpper, actors[0])
+	require.Same(t, aliceLower, actors[1])
+	require.Same(t, bob, actors[2])
+}
+
+func TestVerityTestActors_ReturnsFreshSliceSnapshots(t *testing.T) {
+	t.Parallel()
+	test := NewVerityTest(t, Scene{})
+	alice := test.ActorCalled("Alice")
+	bob := test.ActorCalled("Bob")
+
+	first := test.Actors()
+	first[0] = bob
+	mutated := append(first, alice)
+
+	require.Len(t, mutated, 3)
+	require.Equal(t, []core.Actor{alice, bob}, test.Actors())
+}
+
+func TestVerityTestActors_IsNonNilAndEmptyAfterShutdown(t *testing.T) {
+	t.Parallel()
+	test := NewVerityTest(t, Scene{})
+	test.ActorCalled("Alice")
+	test.Shutdown()
+
+	actors := test.Actors()
+
+	require.NotNil(t, actors)
+	require.Empty(t, actors)
+}
+
+func TestVerityTestActors_RemainsEmptyWhenActorCalledAfterShutdown(t *testing.T) {
+	t.Parallel()
+	test := NewVerityTest(t, Scene{})
+	test.Shutdown()
+	test.ActorCalled("Alice")
+
+	actors := test.Actors()
+
+	require.NotNil(t, actors)
+	require.Empty(t, actors)
+}
+
+func TestVerityTestActors_ConcurrentSnapshotsAreConsistent(t *testing.T) {
+	t.Parallel()
+	test := NewVerityTest(t, Scene{})
+	const actorCount = 64
+	const registrationsPerActor = 4
+	const readers = 8
+
+	start := make(chan struct{})
+	done := make(chan struct{})
+	errs := make(chan error, readers)
+
+	var readerWG sync.WaitGroup
+	for range readers {
+		readerWG.Add(1)
+		go func() {
+			defer readerWG.Done()
+			<-start
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+
+				actors := test.Actors()
+				if actors == nil {
+					errs <- fmt.Errorf("Actors returned a nil snapshot")
+					return
+				}
+				for i, actor := range actors {
+					if actor == nil {
+						errs <- fmt.Errorf("snapshot contains a nil actor at index %d", i)
+						return
+					}
+					if i > 0 && actors[i-1].Name() >= actor.Name() {
+						errs <- fmt.Errorf("snapshot is not strictly sorted: %q before %q", actors[i-1].Name(), actor.Name())
+						return
+					}
+				}
+			}
+		}()
+	}
+
+	var writerWG sync.WaitGroup
+	for i := range actorCount * registrationsPerActor {
+		writerWG.Add(1)
+		go func() {
+			defer writerWG.Done()
+			<-start
+			test.ActorCalled(fmt.Sprintf("Actor-%02d", i%actorCount))
+		}()
+	}
+
+	close(start)
+	writerWG.Wait()
+	close(done)
+	readerWG.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	actors := test.Actors()
+	require.Len(t, actors, actorCount)
+	for i, actor := range actors {
+		require.Equal(t, fmt.Sprintf("Actor-%02d", i), actor.Name())
+	}
+}
+
+func TestVerityTestActors_ConcurrentWithShutdownReturnsAtomicSnapshots(t *testing.T) {
+	t.Parallel()
+	test := NewVerityTest(t, Scene{})
+	const actorCount = 64
+	const readers = 32
+	const snapshotsPerReader = 256
+
+	expected := make([]core.Actor, actorCount)
+	for i := actorCount - 1; i >= 0; i-- {
+		expected[i] = test.ActorCalled(fmt.Sprintf("Actor-%02d", i))
+	}
+
+	var ready sync.WaitGroup
+	ready.Add(readers + 1)
+	start := make(chan struct{})
+	errCh := make(chan error, readers)
+
+	var readersWG sync.WaitGroup
+	for range readers {
+		readersWG.Add(1)
+		go func() {
+			defer readersWG.Done()
+			ready.Done()
+			<-start
+
+			for range snapshotsPerReader {
+				actors := test.Actors()
+				if actors == nil {
+					errCh <- fmt.Errorf("Actors returned a nil snapshot")
+					return
+				}
+				if len(actors) == 0 {
+					continue
+				}
+				if len(actors) != len(expected) {
+					errCh <- fmt.Errorf("snapshot contains %d actors, want either 0 or %d", len(actors), len(expected))
+					return
+				}
+				for i, actor := range actors {
+					if actor != expected[i] {
+						errCh <- fmt.Errorf("snapshot actor %d is not the original sorted instance for %q", i, expected[i].Name())
+						return
+					}
+				}
+			}
+		}()
+	}
+
+	shutdownDone := make(chan struct{})
+	go func() {
+		ready.Done()
+		<-start
+		test.Shutdown()
+		close(shutdownDone)
+	}()
+
+	ready.Wait()
+	close(start)
+	readersWG.Wait()
+	<-shutdownDone
+	close(errCh)
+	for err := range errCh {
+		require.NoError(t, err)
+	}
+
+	actors := test.Actors()
+	require.NotNil(t, actors)
+	require.Empty(t, actors)
 }

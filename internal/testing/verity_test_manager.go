@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -61,6 +62,12 @@ type VerityTest interface {
 	// Returns:
 	//	An Actor instance configured for automatic error handling
 	ActorCalled(name string) core.Actor
+
+	// Actors returns a fresh, non-nil snapshot of the registered actors, sorted
+	// by Name in ascending case-sensitive lexical order. The snapshot contains
+	// the original actor instances; modifying the slice does not change the
+	// registry. After Shutdown, Actors returns an empty snapshot.
+	Actors() []core.Actor
 
 	// Shutdown cleans up resources and finalizes the test.
 	// This method should be called via defer after creating the test instance.
@@ -257,6 +264,25 @@ func (st *verityTest) ActorCalled(name string) core.Actor {
 
 	st.actors[name] = actor
 	return actor
+}
+
+// Actors returns a snapshot of the actors registered with this test.
+func (st *verityTest) Actors() []core.Actor {
+	st.mutex.RLock()
+	defer st.mutex.RUnlock()
+
+	if st.shutdown {
+		return make([]core.Actor, 0)
+	}
+
+	actors := make([]core.Actor, 0, len(st.actors))
+	for _, actor := range st.actors {
+		actors = append(actors, actor)
+	}
+	sort.Slice(actors, func(i, j int) bool {
+		return actors[i].Name() < actors[j].Name()
+	})
+	return actors
 }
 
 // TestContext returns the embedded testing.TB interface.
