@@ -44,7 +44,8 @@ func (c *ConditionActivity[T]) CheckingEvery(interval time.Duration) *ConditionA
 }
 
 func (c *ConditionActivity[T]) Description() string {
-	return fmt.Sprintf("wait up to %v for %s", c.timeout, c.question.Description())
+	return fmt.Sprintf("#actor waits up to %v to ensure %s %s",
+		c.timeout, c.question.Description(), c.expectation.Description())
 }
 
 // FailureMode always returns FailFast: a wait that silently continues after failing
