@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,6 +25,22 @@ import (
 type sceneDefaultAbility struct {
 	owner string
 }
+
+type countingReporter struct {
+	finishCount atomic.Int64
+}
+
+func (*countingReporter) OnTestStart(string) {}
+
+func (r *countingReporter) OnTestFinish(reporting.TestResult) {
+	r.finishCount.Add(1)
+}
+
+func (*countingReporter) OnStepStart(string) {}
+
+func (*countingReporter) OnStepFinish(reporting.TestResult) {}
+
+func (*countingReporter) SetOutput(io.Writer) {}
 
 func TestNewVerityTest_ConfiguredByScene(t *testing.T) {
 	t.Parallel()
@@ -385,7 +403,7 @@ func TestVerityTestActors_ReturnsFreshSliceSnapshots(t *testing.T) {
 	require.Equal(t, []core.Actor{alice, bob}, test.Actors())
 }
 
-func TestVerityTestActors_IsNonNilAndEmptyAfterShutdown(t *testing.T) {
+func TestVerityTestActors_ShutdownReleasesRegistryAndReturnsNonNilEmptySnapshot(t *testing.T) {
 	t.Parallel()
 	test := NewVerityTest(t, Scene{})
 	test.ActorCalled("Alice")
@@ -393,20 +411,139 @@ func TestVerityTestActors_IsNonNilAndEmptyAfterShutdown(t *testing.T) {
 
 	actors := test.Actors()
 
+	require.Nil(t, test.(*verityTest).actors)
 	require.NotNil(t, actors)
 	require.Empty(t, actors)
 }
 
-func TestVerityTestActors_RemainsEmptyWhenActorCalledAfterShutdown(t *testing.T) {
+func TestVerityTestActorCalled_CompletedBeforeShutdownRemainsLegal(t *testing.T) {
+	t.Parallel()
+	test := NewVerityTest(t, Scene{})
+
+	alice := test.ActorCalled("Alice")
+	test.Shutdown()
+
+	require.Equal(t, "Alice", alice.Name())
+	require.Empty(t, test.Actors())
+}
+
+func TestVerityTestActorCalled_PanicsAfterShutdown(t *testing.T) {
 	t.Parallel()
 	test := NewVerityTest(t, Scene{})
 	test.Shutdown()
+
+	require.PanicsWithValue(t, "verity: ActorCalled called after Shutdown", func() {
+		test.ActorCalled("Alice")
+	})
+}
+
+func TestVerityTestActorCalled_ConcurrentWithShutdownLinearizesAtTerminalState(t *testing.T) {
+	t.Parallel()
+	const attempts = 256
+
+	type actorCallResult struct {
+		actor      core.Actor
+		panicValue any
+	}
+
+	for range attempts {
+		reporter := &countingReporter{}
+		test := NewVerityTest(t, Scene{Reporter: reporter})
+		concrete := test.(*verityTest)
+
+		var ready sync.WaitGroup
+		ready.Add(2)
+		start := make(chan struct{})
+		actorResult := make(chan actorCallResult, 1)
+		shutdownPanic := make(chan any, 1)
+
+		go func() {
+			result := actorCallResult{}
+			defer func() {
+				result.panicValue = recover()
+				actorResult <- result
+			}()
+			ready.Done()
+			<-start
+			result.actor = test.ActorCalled("Alice")
+		}()
+
+		go func() {
+			var panicValue any
+			defer func() {
+				panicValue = recover()
+				shutdownPanic <- panicValue
+			}()
+			ready.Done()
+			<-start
+			test.Shutdown()
+		}()
+
+		ready.Wait()
+		close(start)
+		result := <-actorResult
+		require.Nil(t, <-shutdownPanic)
+
+		if result.panicValue == nil {
+			require.NotNil(t, result.actor)
+			require.Equal(t, "Alice", result.actor.Name())
+		} else {
+			require.Equal(t, "verity: ActorCalled called after Shutdown", result.panicValue)
+			require.Nil(t, result.actor)
+		}
+
+		require.Nil(t, concrete.actors, "shutdown must not leave a hidden actor registry")
+		require.Empty(t, test.Actors())
+		require.PanicsWithValue(t, "verity: ActorCalled called after Shutdown", func() {
+			test.ActorCalled("Bob")
+		})
+		require.Equal(t, int64(1), reporter.finishCount.Load())
+	}
+}
+
+func TestVerityTestShutdown_RepeatedAndConcurrentCallsReportExactlyOnce(t *testing.T) {
+	t.Parallel()
+	const callers = 64
+
+	reporter := &countingReporter{}
+	test := NewVerityTest(t, Scene{Reporter: reporter})
 	test.ActorCalled("Alice")
 
-	actors := test.Actors()
+	var ready sync.WaitGroup
+	ready.Add(callers)
+	start := make(chan struct{})
+	panics := make(chan any, callers)
+	var callersWG sync.WaitGroup
+	callersWG.Add(callers)
+	for range callers {
+		go func() {
+			defer callersWG.Done()
+			var panicValue any
+			defer func() {
+				panicValue = recover()
+				panics <- panicValue
+			}()
+			ready.Done()
+			<-start
+			test.Shutdown()
+		}()
+	}
 
-	require.NotNil(t, actors)
-	require.Empty(t, actors)
+	ready.Wait()
+	close(start)
+	callersWG.Wait()
+	close(panics)
+	for panicValue := range panics {
+		require.Nil(t, panicValue)
+	}
+
+	test.Shutdown()
+	require.Equal(t, int64(1), reporter.finishCount.Load())
+	require.Nil(t, test.(*verityTest).actors)
+	require.Empty(t, test.Actors())
+	require.PanicsWithValue(t, "verity: ActorCalled called after Shutdown", func() {
+		test.ActorCalled("Bob")
+	})
 }
 
 func TestVerityTestActors_ConcurrentSnapshotsAreConsistent(t *testing.T) {
@@ -415,9 +552,11 @@ func TestVerityTestActors_ConcurrentSnapshotsAreConsistent(t *testing.T) {
 	const actorCount = 64
 	const registrationsPerActor = 4
 	const readers = 8
+	const snapshotsPerReader = 256
 
+	var ready sync.WaitGroup
+	ready.Add(readers + actorCount*registrationsPerActor)
 	start := make(chan struct{})
-	done := make(chan struct{})
 	errs := make(chan error, readers)
 
 	var readerWG sync.WaitGroup
@@ -425,14 +564,9 @@ func TestVerityTestActors_ConcurrentSnapshotsAreConsistent(t *testing.T) {
 		readerWG.Add(1)
 		go func() {
 			defer readerWG.Done()
+			ready.Done()
 			<-start
-			for {
-				select {
-				case <-done:
-					return
-				default:
-				}
-
+			for range snapshotsPerReader {
 				actors := test.Actors()
 				if actors == nil {
 					errs <- fmt.Errorf("Actors returned a nil snapshot")
@@ -457,14 +591,15 @@ func TestVerityTestActors_ConcurrentSnapshotsAreConsistent(t *testing.T) {
 		writerWG.Add(1)
 		go func() {
 			defer writerWG.Done()
+			ready.Done()
 			<-start
 			test.ActorCalled(fmt.Sprintf("Actor-%02d", i%actorCount))
 		}()
 	}
 
+	ready.Wait()
 	close(start)
 	writerWG.Wait()
-	close(done)
 	readerWG.Wait()
 	close(errs)
 	for err := range errs {

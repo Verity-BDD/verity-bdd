@@ -61,15 +61,21 @@ type VerityTest interface {
 	//
 	// Returns:
 	//	An Actor instance configured for automatic error handling
+	//
+	// ActorCalled panics with "verity: ActorCalled called after Shutdown" when
+	// invoked after Shutdown has made the test lifecycle terminal.
 	ActorCalled(name string) core.Actor
 
 	// Actors returns a fresh, non-nil snapshot of the registered actors, sorted
 	// by Name in ascending case-sensitive lexical order. The snapshot contains
 	// the original actor instances; modifying the slice does not change the
-	// registry. After Shutdown, Actors returns an empty snapshot.
+	// registry. Shutdown clears the registry, so subsequent calls return an empty
+	// snapshot.
 	Actors() []core.Actor
 
-	// Shutdown cleans up resources and finalizes the test.
+	// Shutdown cleans up resources and terminally finalizes the test. It is
+	// idempotent; after it returns, ActorCalled panics and Actors returns an empty
+	// snapshot.
 	// This method should be called via defer after creating the test instance.
 	// Failure to call Shutdown() may result in resource leaks.
 	//
@@ -223,18 +229,13 @@ func NewVerityTestWithReporter(ctx context.Context, t TestContext, reporter repo
 
 // ActorCalled returns an actor with the given name
 func (st *verityTest) ActorCalled(name string) core.Actor {
-	st.mutex.RLock()
-	actor, exists := st.actors[name]
-	st.mutex.RUnlock()
-
-	if exists {
-		return actor
-	}
-
 	st.mutex.Lock()
 	defer st.mutex.Unlock()
 
-	// Double-check after acquiring write lock
+	if st.shutdown {
+		panic("verity: ActorCalled called after Shutdown")
+	}
+
 	if actor, exists := st.actors[name]; exists {
 		return actor
 	}
@@ -260,25 +261,19 @@ func (st *verityTest) ActorCalled(name string) core.Actor {
 		createdActor.WhoCan(ability)
 	}
 
-	actor = createdActor
-
-	st.actors[name] = actor
-	return actor
+	st.actors[name] = createdActor
+	return createdActor
 }
 
 // Actors returns a snapshot of the actors registered with this test.
 func (st *verityTest) Actors() []core.Actor {
 	st.mutex.RLock()
-	defer st.mutex.RUnlock()
-
-	if st.shutdown {
-		return make([]core.Actor, 0)
-	}
-
 	actors := make([]core.Actor, 0, len(st.actors))
 	for _, actor := range st.actors {
 		actors = append(actors, actor)
 	}
+	st.mutex.RUnlock()
+
 	sort.Slice(actors, func(i, j int) bool {
 		return actors[i].Name() < actors[j].Name()
 	})
@@ -346,8 +341,8 @@ func (st *verityTest) Shutdown() {
 		st.adapter.GetReporter().OnTestFinish(result)
 	}
 
-	// Clear actors map
-	st.actors = make(map[string]core.Actor)
+	// Release actor references and make the lifecycle terminal.
+	st.actors = nil
 	st.shutdown = true
 }
 
