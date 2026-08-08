@@ -13,6 +13,7 @@ func TestFindConstructorOrientedDomainFactories(t *testing.T) {
 	t.Parallel()
 
 	fixtureWant := []string{
+		"example.com/policyfixture/generated.NewGeneratedActivity",
 		"example.com/policyfixture/public.NewConcreteQuestion",
 		"example.com/policyfixture/public.NewConsoleReporter",
 		"example.com/policyfixture/public.NewDirectActivity",

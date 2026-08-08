@@ -121,14 +121,12 @@ func listPackages(moduleDir string) ([]listedPackage, error) {
 func scanPackage(fileSet *token.FileSet, typeImporter types.Importer, listed listedPackage, contracts domainContracts) ([]string, error) {
 	filenames := append(append([]string{}, listed.GoFiles...), listed.CgoFiles...)
 	files := make([]*ast.File, 0, len(filenames))
-	generated := make(map[*ast.File]bool, len(filenames))
 	for _, filename := range filenames {
-		file, err := parser.ParseFile(fileSet, filepath.Join(listed.Dir, filename), nil, parser.ParseComments)
+		file, err := parser.ParseFile(fileSet, filepath.Join(listed.Dir, filename), nil, 0)
 		if err != nil {
 			return nil, fmt.Errorf("parse %s: %w", filepath.Join(listed.Dir, filename), err)
 		}
 		files = append(files, file)
-		generated[file] = ast.IsGenerated(file)
 	}
 	if len(files) == 0 {
 		return nil, nil
@@ -142,9 +140,6 @@ func scanPackage(fileSet *token.FileSet, typeImporter types.Importer, listed lis
 
 	var found []string
 	for _, file := range files {
-		if generated[file] {
-			continue
-		}
 		for _, declaration := range file.Decls {
 			function, ok := declaration.(*ast.FuncDecl)
 			if !ok || function.Recv != nil || !ast.IsExported(function.Name.Name) || !strings.HasPrefix(function.Name.Name, "New") {
