@@ -27,7 +27,7 @@ func TestRequestBuilderAppliesHeadersAndBodies(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	builder := NewRequestBuilder(http.MethodPost, server.URL)
+	builder := RequestFor(http.MethodPost, server.URL)
 	builder.WithHeader("X-One", "1").WithHeaders(map[string]string{"X-Two": "two"})
 	if err := builder.WithJSONBody(map[string]string{"name": "tester"}); err != nil {
 		t.Fatalf("WithJSONBody returned error: %v", err)
@@ -59,7 +59,7 @@ func TestRequestBuilderWithSetsBody(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	builder := NewRequestBuilder(http.MethodPost, server.URL)
+	builder := RequestFor(http.MethodPost, server.URL)
 	builder.With("raw-body")
 
 	req, err := builder.Build()

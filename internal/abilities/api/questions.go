@@ -75,8 +75,8 @@ type ResponseHeader struct {
 	key string
 }
 
-// NewResponseHeader creates a new question for a specific header
-func NewResponseHeader(key string) ResponseHeader {
+// LastResponseHeader creates a question for a specific header.
+func LastResponseHeader(key string) ResponseHeader {
 	return ResponseHeader{key: key}
 }
 
@@ -152,8 +152,8 @@ type JSONPath struct {
 	path string
 }
 
-// NewJSONPath creates a new JSON path question
-func NewJSONPath(path string) JSONPath {
+// LastResponseBodyAtJSONPath creates a question for a JSON path in the last response body.
+func LastResponseBodyAtJSONPath(path string) JSONPath {
 	return JSONPath{path: path}
 }
 

@@ -19,7 +19,7 @@ func TestQuestionsErrorWhenNoResponse(t *testing.T) {
 	if _, err := LastResponseBodyQ.AnsweredBy(context.Background(), actor); err == nil {
 		t.Fatalf("expected error when no response available")
 	}
-	if _, err := NewResponseHeader("X-Test").AnsweredBy(context.Background(), actor); err == nil {
+	if _, err := LastResponseHeader("X-Test").AnsweredBy(context.Background(), actor); err == nil {
 		t.Fatalf("expected error when no response available")
 	}
 }
@@ -124,7 +124,7 @@ func TestJSONPathTraversal(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	email, err := NewJSONPath("user.emails.1").AnsweredBy(context.Background(), actor)
+	email, err := LastResponseBodyAtJSONPath("user.emails.1").AnsweredBy(context.Background(), actor)
 	if err != nil {
 		t.Fatalf("expected email path to succeed: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestJSONPathTraversal(t *testing.T) {
 		t.Fatalf("unexpected email value: %v", email)
 	}
 
-	ids, err := NewJSONPath("items.*.id").AnsweredBy(context.Background(), actor)
+	ids, err := LastResponseBodyAtJSONPath("items.*.id").AnsweredBy(context.Background(), actor)
 	if err != nil {
 		t.Fatalf("expected wildcard path to succeed: %v", err)
 	}
@@ -142,10 +142,10 @@ func TestJSONPathTraversal(t *testing.T) {
 		t.Fatalf("unexpected ids result: %#v", ids)
 	}
 
-	if _, err := NewJSONPath("user.emails.5").AnsweredBy(context.Background(), actor); err == nil {
+	if _, err := LastResponseBodyAtJSONPath("user.emails.5").AnsweredBy(context.Background(), actor); err == nil {
 		t.Fatalf("expected out-of-bounds error")
 	}
-	if _, err := NewJSONPath("user.unknown").AnsweredBy(context.Background(), actor); err == nil {
+	if _, err := LastResponseBodyAtJSONPath("user.unknown").AnsweredBy(context.Background(), actor); err == nil {
 		t.Fatalf("expected unknown path error")
 	}
 }
