@@ -1,12 +1,12 @@
 // Package testing provides the TestContext API for simplified testing in Go.
 //
-// The TestContext API eliminates the need for manual error handling in tests by
-// automatically managing test failures through the testing.TB interface.
+// The TestContext API reports activity errors according to each activity's
+// FailureMode through the testing.TB-like interface.
 //
 // Key Features:
 //
-//   - Automatic error handling through TestContext
-//   - Actor lifecycle management with defer.Shutdown()
+//   - Failure-mode-aware error handling through TestContext
+//   - Automatic actor cleanup through TestContext.Cleanup
 //   - Integrated reporting capabilities
 //   - Support for multiple actors in single test
 //   - Thread-safe actor management
@@ -31,24 +31,21 @@
 //	admin := test.ActorCalled("Admin").WhoCan(api.CallAnApiAt(apiURL))
 //	user := test.ActorCalled("User").WhoCan(api.CallAnApiAt(apiURL))
 //
-//	admin.AttemptsTo(api.SendPostRequest("/users", userData))
+//	admin.AttemptsTo(api.SendPostRequest("/users").WithBody(userData))
 //	user.AttemptsTo(api.SendGetRequest("/users/1"))
 //
 // Custom Reporting:
 //
 //	reporter := custom.NewJSONReporter()
-//	test := verity.NewVerityTestWithReporter(t, reporter)
+//	test := verity.NewVerityTestWithReporter(context.Background(), t, reporter)
 //
 // Error Handling:
 //
 //	Unlike the legacy API where errors need to be manually handled:
 //
-//	// Legacy approach
-//	err := actor.AttemptsTo(activity)
-//	require.NoError(t, err)
-//
-//	// TestContext API - automatic error handling
-//	actor.AttemptsTo(activity) // Errors automatically fail the test
+//	// AttemptsTo applies the activity's failure mode and returns no error.
+//	actor.AttemptsTo(activity)
+//	// FailFast: Errorf + FailNow; ErrorButContinue: Errorf; Ignore: Logf only.
 //
 // Thread Safety:
 //
@@ -58,12 +55,11 @@ package testing
 
 //go:generate go run go.uber.org/mock/mockgen@latest -source=context.go -destination=mocks/mock_test_context.go -package=mocks
 
-// TestContext provides a testing.TB wrapper for automatic error handling.
-// This interface enables the TestContext API where test failures are automatically
-// handled without the need for manual error checking.
+// TestContext provides the testing hooks used by actors to handle activity errors.
+// AttemptsTo applies the activity's FailureMode without returning an error.
 //
-// Methods automatically call t.Helper() and t.Fatalf() on errors,
-// eliminating the need for require.NoError() calls in test code.
+// FailFast reports with Errorf and stops with FailNow; ErrorButContinue reports
+// with Errorf and continues; Ignore logs with Logf and does not fail the test.
 type TestContext interface {
 	// Name returns the name of the test
 	Name() string
@@ -112,13 +108,13 @@ type TestContext interface {
 //
 //	actor := test.ActorCalled("ErrorProneUser").WhoCan(api.CallAnApiAt("https://invalid.example.com"))
 //
-//	// This will automatically fail the test with a descriptive error
+//	// SendGetRequest is FailFast, so an error reports with Errorf and calls FailNow.
 //	actor.AttemptsTo(api.SendGetRequest("/endpoint"))
 //
 // Custom Reporters:
 //
 //	reporter := &customReporter{output: os.Stdout}
-//	test := verity.NewVerityTestWithReporter(t, reporter)
+//	test := verity.NewVerityTestWithReporter(context.Background(), t, reporter)
 //
 //	actor := test.ActorCalled("ReportedUser").WhoCan(api.CallAnApiAt(apiURL))
 //	actor.AttemptsTo(api.SendGetRequest("/users"))

@@ -25,10 +25,13 @@ type LastResponseBody = internalapi.LastResponseBody
 // ResponseHeader is a question that returns a specific header value from the last HTTP response.
 type ResponseHeader = internalapi.ResponseHeader
 
-// JSONPath is a question that returns the value at a specified JSON path in the last HTTP response body.
+// JSONPath returns an untyped decoded JSON value at a dot-separated path.
+// Object values decode as map[string]any, arrays as []any, numbers as float64,
+// and an array wildcard segment can produce []any.
 type JSONPath = internalapi.JSONPath
 
-// ResponseTime is a question that returns the response time of the last HTTP request.
+// ResponseTime is a placeholder question for request timing. Timing is not
+// implemented, so AnsweredBy currently returns 0.
 type ResponseTime = internalapi.ResponseTime
 
 // Using creates a new CallAnAPI ability with the given HTTP client.
@@ -82,7 +85,9 @@ func NewResponseHeader(key string) ResponseHeader {
 	return internalapi.NewResponseHeader(key)
 }
 
-// NewJSONPath creates a new question that extracts the value at the given JSON path from the last HTTP response body.
+// NewJSONPath creates an untyped question for a dot-separated JSON path.
+// Numeric path segments index arrays and "*" maps the remaining path across
+// array elements, omitting elements for which that remaining path errors.
 func NewJSONPath(path string) JSONPath {
 	return internalapi.NewJSONPath(path)
 }
@@ -98,5 +103,6 @@ var LastResponseStatusQ = internalapi.LastResponseStatusQ
 // LastResponseBodyQ is a pre-built question that returns the body of the last HTTP response.
 var LastResponseBodyQ = internalapi.LastResponseBodyQ
 
-// ResponseTimeQ is a pre-built question that returns the response time of the last HTTP request.
+// ResponseTimeQ is the pre-built timing placeholder. It currently returns 0
+// because request timing is not implemented.
 var ResponseTimeQ = internalapi.ResponseTimeQ

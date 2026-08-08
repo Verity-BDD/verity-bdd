@@ -147,7 +147,7 @@ func (rbaj ResponseBodyAsJSON[T]) Description() string {
 	return "the last response body as JSON"
 }
 
-// JSONPath represents a JSON path query on the response body
+// JSONPath represents an untyped, dot-separated JSON path query.
 type JSONPath struct {
 	path string
 }
@@ -157,7 +157,8 @@ func NewJSONPath(path string) JSONPath {
 	return JSONPath{path: path}
 }
 
-// AnsweredBy returns the value at the specified JSON path
+// AnsweredBy returns a decoded JSON value. Objects, arrays, numbers, strings,
+// booleans, and null use encoding/json's ordinary any representations.
 func (jp JSONPath) AnsweredBy(ctx context.Context, actor core.Actor) (any, error) {
 	ability, err := actor.AbilityTo(&callAnAPI{})
 	if err != nil {
@@ -235,10 +236,10 @@ func (jp JSONPath) extractValue(data any, path []string) (any, error) {
 	}
 }
 
-// ResponseTime returns the response time of the last request
+// ResponseTime is a placeholder for response timing, which is not implemented.
 type ResponseTime struct{}
 
-// AnsweredBy returns the response time (currently returns 0 as timing needs to be implemented in interactions)
+// AnsweredBy returns 0 because request timing is not implemented.
 func (rt ResponseTime) AnsweredBy(ctx context.Context, actor core.Actor) (int64, error) {
 	// This would need timing implementation in interactions
 	return 0, nil

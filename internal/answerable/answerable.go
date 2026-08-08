@@ -5,7 +5,7 @@
 //	// Static values
 //	ensure.That(answerable.ValueOf(4), expectations.Equals(4))
 //	ensure.That(answerable.ValueOf("hello"), expectations.ContainsSubstring("ell"))
-//	ensure.That(answerable.ValueOf(user), expectations.HasField("Name", "John"))
+//	ensure.That(answerable.ValueOf(user), expectations.Equals(user))
 //
 // For dynamic calculations backed by a function, use verity.QuestionAbout instead.
 //
@@ -22,7 +22,7 @@
 //
 //	// Complex types
 //	user := User{Name: "John", Age: 30}
-//	ensure.That(answerable.ValueOf(user), expectations.HasField("Name", "John"))
+//	ensure.That(answerable.ValueOf(user), expectations.Equals(user))
 //
 //	// Error values (errors are treated as values, not as failures)
 //	err := fmt.Errorf("something went wrong")

@@ -20,14 +20,20 @@ import (
 //
 //	// Create a question using QuestionAbout
 //	userCount := core.QuestionAbout[int]("number of users", func(_ context.Context, actor core.Actor) (int, error) {
-//		db := actor.AbilityTo(&database.DatabaseAbility{}).(database.DatabaseAbility)
-//		return db.QueryRow("SELECT COUNT(*) FROM users").Int()
+//		ability, err := actor.AbilityTo(&database.DatabaseAbility{})
+//		if err != nil {
+//			return 0, err
+//		}
+//		return ability.(database.DatabaseAbility).QueryRow("SELECT COUNT(*) FROM users").Int()
 //	})
 //
 //	// Another question using QuestionAbout
 //	userName := core.QuestionAbout("current user name", func(_ context.Context, actor core.Actor) (string, error) {
-//		session := actor.AbilityTo(&auth.SessionAbility{}).(auth.SessionAbility)
-//		return session.GetCurrentUser().Name
+//		ability, err := actor.AbilityTo(&auth.SessionAbility{})
+//		if err != nil {
+//			return "", err
+//		}
+//		return ability.(auth.SessionAbility).GetCurrentUser().Name, nil
 //	})
 //
 // Type Safety:
@@ -46,9 +52,8 @@ import (
 // Using Questions with Expectations:
 //
 //	actor.AttemptsTo(
-//		ensure.That(userCount, expectations.GreaterThan(0)),
+//		ensure.That(userCount, expectations.Equals(count)),
 //		ensure.That(userName, expectations.ContainsSubstring("admin")),
-//		ensure.That(userProfile, expectations.HasField("Email", expectations.IsNotEmpty())),
 //	)
 //
 
@@ -132,7 +137,7 @@ func (q *question[T]) AnsweredBy(ctx context.Context, actor Actor) (T, error) {
 //
 //	// With expectations
 //	actor.AttemptsTo(
-//		ensure.That(isHealthy, expectations.IsTrue()),
+//		ensure.That(isHealthy, expectations.Equals(true)),
 //	)
 func QuestionAbout[T any](description string, ask func(ctx context.Context, actor Actor) (T, error)) Question[T] {
 	if ask == nil {

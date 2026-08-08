@@ -38,7 +38,7 @@ type Scene struct {
 //  1. Create test instance with NewVerityTest() or NewVerityTestWithReporter()
 //  2. Create actors using ActorCalled()
 //  3. Execute test activities
-//  4. Call Shutdown() to clean up resources (typically via defer)
+//  4. Registered cleanup calls Shutdown automatically; explicit calls are optional
 //
 // Thread Safety:
 //
@@ -75,9 +75,9 @@ type VerityTest interface {
 
 	// Shutdown cleans up resources and terminally finalizes the test. It is
 	// idempotent; after it returns, ActorCalled panics and Actors returns an empty
-	// snapshot.
-	// This method should be called via defer after creating the test instance.
-	// Failure to call Shutdown() may result in resource leaks.
+	// snapshot. NewVerityTest registers Shutdown with TestContext.Cleanup
+	// automatically. Calling Shutdown explicitly is optional when earlier
+	// finalization is useful.
 	//
 	// Example:
 	//	test := verity.NewVerityTest(t, verity.Scene{})
@@ -115,7 +115,7 @@ type VerityTest interface {
 //
 //	func TestWithCustomReporting(t *testing.T) {
 //		reporter := custom.NewJSONReporter()
-//		test := verity.NewVerityTestWithReporter(t, reporter)
+//		test := verity.NewVerityTestWithReporter(context.Background(), t, reporter)
 //
 //		actor := test.ActorCalled("ReportedUser").WhoCan(api.CallAnApiAt(apiURL))
 //		actor.AttemptsTo(api.SendGetRequest("/health"))

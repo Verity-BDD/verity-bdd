@@ -291,7 +291,7 @@ actor.AttemptsTo(
 The description you provide to `Satisfies` appears in test failure messages, making it clear what validation failed:
 
 ```
-#actor ensures that 42 (int) is positive number failed: assertion failed for '42 (int)': expected positive value, but got -5
+#actor ensures that -5 (int) is positive number failed: assertion failed for '-5 (int)': expected positive value, but got -5
 ```
 
 ## Best Practices
@@ -322,11 +322,18 @@ actor.AttemptsTo(
 `Satisfies` maintains type safety with generics:
 
 ```go
-// This will not compile - wrong type
-expectations.Satisfies("is positive", func(actual string) error { ... })
+// This complete expression will not compile: the question answers int,
+// while the expectation accepts string.
+ensure.That(
+    answerable.ValueOf(1),
+    expectations.Satisfies("is positive", func(actual string) error { return nil }),
+)
 
 // Correct type
-expectations.Satisfies("is positive", func(actual int) error { ... })
+ensure.That(
+    answerable.ValueOf(1),
+    expectations.Satisfies("is positive", func(actual int) error { return nil }),
+)
 ```
 
 ## Running Examples

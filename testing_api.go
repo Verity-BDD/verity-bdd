@@ -23,7 +23,7 @@ type Scene = internaltesting.Scene
 //  1. Create test instance with NewVerityTest() or NewVerityTestWithReporter()
 //  2. Create actors using ActorCalled()
 //  3. Execute test activities
-//  4. Call Shutdown() to clean up resources (typically via defer)
+//  4. Cleanup calls Shutdown automatically; explicit Shutdown is optional and idempotent
 //
 // Thread Safety:
 //
@@ -31,12 +31,11 @@ type Scene = internaltesting.Scene
 //	create and use actors from the same test instance.
 type VerityTest = internaltesting.VerityTest
 
-// TestContext provides a testing.TB wrapper for automatic error handling.
-// This interface enables the TestContext API where test failures are automatically
-// handled without the need for manual error checking.
+// TestContext provides the testing hooks used to report activity failures.
+// AttemptsTo applies each activity's FailureMode without returning an error.
 //
-// Methods automatically call t.Helper() and t.Fatalf() on errors,
-// eliminating the need for require.NoError() calls in test code.
+// FailFast reports with Errorf and stops with FailNow; ErrorButContinue reports
+// with Errorf and continues; Ignore logs with Logf and does not fail the test.
 type TestContext = internaltesting.TestContext
 
 // NewVerityTest creates a new VerityTest instance.

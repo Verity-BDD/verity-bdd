@@ -42,7 +42,7 @@ type Ability = internalabilities.Ability
 //	)
 //
 //	// Perform activities
-//	err := actor.AttemptsTo(
+//	actor.AttemptsTo(
 //		Do("creates customer order", func(ctx context.Context, a Actor) error {
 //			return createOrder(orderData).PerformAs(ctx, a)
 //		}),
@@ -83,7 +83,7 @@ type Actor = internalcore.Actor
 // Activity Lifecycle:
 //
 //  1. Actor calls AttemptsTo() with one or more activities
-//  2. Each activity's PerformAs() method is called with the actor
+//  2. Each activity's PerformAs() method is called with the context and actor
 //  3. Activity uses actor's abilities to perform its action
 //  4. Activity returns success or error
 //  5. Actor handles errors based on activity's FailureMode
@@ -108,7 +108,12 @@ type Activity = internalcore.Activity
 //		if err != nil {
 //			return fmt.Errorf("actor needs API ability: %w", err)
 //		}
-//		return ability.SendGetRequest("/users")
+//		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/users", nil)
+//		if err != nil {
+//			return err
+//		}
+//		_, err = ability.SendRequest(req, ctx)
+//		return err
 //	})
 //
 // Custom Interaction Types:
@@ -175,7 +180,7 @@ type Task = internalcore.Task
 // Creating Questions:
 //
 //	// Using QuestionAbout (convenience factory)
-//	userCount := QuestionAbout("user count", func(ctx context.Context, actor Actor) (int, error) {
+//	userCount := QuestionAbout[any]("user count", func(ctx context.Context, actor Actor) (any, error) {
 //		db, err := AbilityOf[database.DatabaseAbility](actor)
 //		if err != nil {
 //			return 0, err
@@ -202,7 +207,7 @@ type Task = internalcore.Task
 //
 //	// With expectations (recommended)
 //	actor.AttemptsTo(
-//		ensure.That(userCount, expectations.GreaterThan(0)),
+//		ensure.That(userCount, expectations.IsGreaterThan(0)),
 //		ensure.That(userName, expectations.ContainsSubstring("admin")),
 //	)
 //
@@ -258,9 +263,8 @@ type Status = internalcore.Status
 // This type determines whether test execution continues or stops
 // when an activity encounters an error.
 //
-// Default Behavior:
-//
-//	All activities use FailFast mode unless explicitly overridden.
+// Built-in interactions and tasks currently use FailFast. Custom Activity
+// implementations choose their mode by implementing FailureMode.
 type FailureMode = internalcore.FailureMode
 
 const (
@@ -295,14 +299,13 @@ const (
 	//	- Dependencies required for subsequent steps
 	//
 	// Behavior:
-	//	- Stops execution immediately on error
-	//	- Returns the first error encountered
+	//	- Records the failure with TestContext.Errorf and calls TestContext.FailNow
+	//	- AttemptsTo returns no value; failures are reported through the test context
 	//	- Subsequent activities are not executed
 	FailFast = internalcore.FailFast
 
-	// ErrorButContinue logs the error but continues with remaining activities.
-	// Use this for non-critical operations where you want to know about
-	// failures but don't want them to stop the entire test.
+	// ErrorButContinue reports the error with TestContext.Errorf, marking the
+	// test failed, but continues with remaining activities.
 	//
 	// Use Cases:
 	//	- Monitoring and metrics collection
@@ -310,13 +313,12 @@ const (
 	//	- Audit logging
 	//
 	// Behavior:
-	//	- Logs the error but continues execution
+	//	- Marks the test failed but continues execution
 	//	- Later activities continue to execute
 	ErrorButContinue = internalcore.ErrorButContinue
 
-	// Ignore completely ignores the failure and continues.
-	// Use this for truly optional operations where failure is acceptable
-	// or expected in certain scenarios.
+	// Ignore logs the failure with TestContext.Logf and continues without
+	// marking the test failed.
 	//
 	// Use Cases:
 	//	- Optional cleanup operations
@@ -324,8 +326,7 @@ const (
 	//	- Precondition checks that may legitimately fail
 	//
 	// Behavior:
-	//	- Completely ignores any errors
-	//	- Never returns errors from this activity
+	//	- Logs the error without failing the test
 	//	- Execution continues regardless of success or failure
 	Ignore = internalcore.Ignore
 )
@@ -345,11 +346,16 @@ const (
 //
 //	// Simple API call interaction
 //	sendGetRequest := Do("sends GET request to /users", func(ctx context.Context, actor Actor) error {
-//		api, err := AbilityOf[api.CallAnAPI](actor)
+//		apiAbility, err := AbilityOf[api.CallAnAPI](actor)
 //		if err != nil {
 //			return fmt.Errorf("actor needs API ability: %w", err)
 //		}
-//		return api.SendGetRequest("/users")
+//		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/users", nil)
+//		if err != nil {
+//			return err
+//		}
+//		_, err = apiAbility.SendRequest(req, ctx)
+//		return err
 //	})
 //
 //	// As part of a task
@@ -381,10 +387,7 @@ func Do(description string, perform func(context.Context, Actor) error) Interact
 //		Do("verifies user in database", verifyUser),
 //	)
 //
-//	err := actor.AttemptsTo(registerUser)
-//	if err != nil {
-//		return fmt.Errorf("test workflow failed: %w", err)
-//	}
+//	actor.AttemptsTo(registerUser)
 func TaskWhere(description string, activities ...Activity) Task {
 	return internalcore.TaskWhere(description, activities...)
 }
@@ -396,48 +399,34 @@ func TaskWhere(description string, activities ...Activity) Task {
 // Returns:
 //   - FailureMode: Always returns FailFast
 //
-// Usage:
-//
-//	actor.AttemptsTo(
-//		Do("establishes database connection", connectDB).WithFailureMode(Critical()),
-//		Do("creates user account", createUser),
-//	)
+// Interactions returned by Do do not provide a WithFailureMode method. Return
+// Critical from FailureMode on a custom Activity implementation when needed.
 func Critical() FailureMode {
 	return internalcore.Critical()
 }
 
-// NonCritical returns a failure mode that logs errors but continues.
+// NonCritical returns a failure mode that marks the test failed but continues.
 // This is a semantic function that returns ErrorButContinue mode.
 // Use this for operations that should be noted but not stop execution.
 //
 // Returns:
 //   - FailureMode: Always returns ErrorButContinue
 //
-// Usage:
-//
-//	actor.AttemptsTo(
-//		Do("main business operation", businessLogic),
-//		Do("collects usage metrics", collectMetrics).WithFailureMode(NonCritical()),
-//		Do("verifies result", verifyResult),
-//	)
+// Interactions returned by Do do not provide a WithFailureMode method. Return
+// NonCritical from FailureMode on a custom Activity implementation when needed.
 func NonCritical() FailureMode {
 	return internalcore.NonCritical()
 }
 
-// Optional returns a failure mode that ignores errors completely.
+// Optional returns a failure mode that logs errors without failing the test.
 // This is a semantic function that returns Ignore mode.
 // Use this for operations where failure is acceptable or expected.
 //
 // Returns:
 //   - FailureMode: Always returns Ignore
 //
-// Usage:
-//
-//	actor.AttemptsTo(
-//		Do("main test execution", mainTest),
-//		Do("attempts to cleanup resources", cleanup).WithFailureMode(Optional()),
-//		Do("final assertion", finalAssertion),
-//	)
+// Interactions returned by Do do not provide a WithFailureMode method. Return
+// Optional from FailureMode on a custom Activity implementation when needed.
 func Optional() FailureMode {
 	return internalcore.Optional()
 }
@@ -472,7 +461,7 @@ func AbilityName(ability Ability) string {
 //
 //	// With expectations
 //	actor.AttemptsTo(
-//		ensure.That(isHealthy, expectations.IsTrue()),
+//		ensure.That(isHealthy, expectations.Equals(true)),
 //	)
 func QuestionAbout[T any](description string, ask func(ctx context.Context, actor Actor) (T, error)) Question[T] {
 	return internalcore.QuestionAbout(description, ask)
@@ -497,7 +486,7 @@ func QuestionAbout[T any](description string, ask func(ctx context.Context, acto
 //	if err != nil {
 //		return fmt.Errorf("actor needs API ability: %w", err)
 //	}
-//	response, err := apiAbility.SendGetRequest("/users")
+//	response, err := apiAbility.SendRequest(request, ctx)
 func AbilityOf[T Ability](actor Actor) (T, error) {
 	return internalcore.AbilityOf[T](actor)
 }
