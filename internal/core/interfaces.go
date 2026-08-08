@@ -36,9 +36,12 @@
 //	)
 //
 //	// Ask questions about system state
-//	userCount := core.QuestionAbout("user count", func(_ context.Context, actor core.Actor) (int, error) {
-//		db := actor.AbilityTo(&database.DatabaseAbility{}).(database.DatabaseAbility)
-//		return db.QueryRow("SELECT COUNT(*) FROM users").Int()
+//	userCount := core.QuestionAbout[any]("user count", func(_ context.Context, actor core.Actor) (any, error) {
+//		ability, err := actor.AbilityTo(&database.DatabaseAbility{})
+//		if err != nil {
+//			return 0, err
+//		}
+//		return ability.(database.DatabaseAbility).QueryRow("SELECT COUNT(*) FROM users").Int()
 //	})
 //
 //	count, err := userCount.AnsweredBy(ctx, actor)
@@ -53,7 +56,7 @@
 //
 //	// Interaction example
 //	sendRequest := core.Do("sends POST request", func(ctx context.Context, actor core.Actor) error {
-//		return api.SendPostRequest("/users", userData).PerformAs(ctx, actor)
+//		return api.SendPostRequest("/users").WithBody(userData).PerformAs(ctx, actor)
 //	})
 //
 //	// Task example
@@ -69,42 +72,32 @@
 //
 //	// Type-safe question with generic parameter
 //	userName := core.QuestionAbout("current user name", func(ctx context.Context, actor core.Actor) (string, error) {
-//		session := actor.AbilityTo(&auth.SessionAbility{}).(auth.SessionAbility)
-//		return session.GetCurrentUser().Name, nil
+//		ability, err := actor.AbilityTo(&auth.SessionAbility{})
+//		if err != nil {
+//			return "", err
+//		}
+//		return ability.(auth.SessionAbility).GetCurrentUser().Name, nil
 //	})
 //
 //	// Complex type question
 //	userProfile := core.QuestionAbout("user profile", func(ctx context.Context, actor core.Actor) (*UserProfile, error) {
-//		db := actor.AbilityTo(&database.DatabaseAbility{}).(database.DatabaseAbility)
-//		return db.GetUserProfile(actor.Name())
+//		ability, err := actor.AbilityTo(&database.DatabaseAbility{})
+//		if err != nil {
+//			return nil, err
+//		}
+//		return ability.(database.DatabaseAbility).GetUserProfile(actor.Name())
 //	})
 //
 //	// Questions can be used directly or with expectations
 //	actor.AttemptsTo(
 //		ensure.That(userName, expectations.ContainsSubstring("John")),
-//		ensure.That(userProfile, expectations.HasField("Email", expectations.IsNotEmpty())),
 //	)
 //
 // Failure Modes:
 //
-//	Activities can specify how failures should be handled:
-//
-//	// FailFast (default) - stops execution on first failure
-//	actor.AttemptsTo(
-//		core.Do("critical operation", criticalStep), // stops if this fails
-//		core.Do("cleanup operation", cleanupStep),    // won't execute if above fails
-//	)
-//
-//	// ErrorButContinue - logs error but continues execution
-//	actor.AttemptsTo(
-//		core.Do("non-critical step", nonCriticalStep).WithFailureMode(core.NonCritical()),
-//		core.Do("another step", anotherStep), // executes even if above fails
-//	)
-//
-//	// Ignore - completely ignores failures
-//	actor.AttemptsTo(
-//		core.Do("optional cleanup", optionalCleanup).WithFailureMode(core.Optional()),
-//	)
+//	Built-in tasks and interactions are fail-fast. A custom Activity can return
+//	ErrorButContinue or Ignore from FailureMode. Interactions returned by Do do
+//	not expose a WithFailureMode method.
 //
 // Integration with Other Packages:
 //
@@ -173,7 +166,7 @@ import (
 //	)
 //
 //	// Perform activities
-//	err := actor.AttemptsTo(
+//	actor.AttemptsTo(
 //		core.Do("creates customer order", func(ctx context.Context, a core.Actor) error {
 //			return createOrder(orderData).PerformAs(ctx, a)
 //		}),
@@ -183,13 +176,13 @@ import (
 //	)
 //
 //	// Access abilities directly
-//	apiAbility, err := actor.AbilityTo(&api.CallAnAPI{})
+//	apiAbility, err := actor.AbilityTo(api.Using(nil))
 //	if err != nil {
 //		return fmt.Errorf("actor lacks API ability: %w", err)
 //	}
 //
 //	// Use ability for custom operations
-//	response, err := apiAbility.(api.CallAnAPI).SendRequest(request)
+//	response, err := apiAbility.(api.CallAnAPI).SendRequest(request, request.Context())
 //
 // Thread Safety:
 //
@@ -246,13 +239,13 @@ type Actor interface {
 	// Example:
 	//
 	//	// Get API ability
-	//	apiAbility, err := actor.AbilityTo(&api.CallAnAPI{})
+	//	apiAbility, err := actor.AbilityTo(api.Using(nil))
 	//	if err != nil {
 	//		return fmt.Errorf("actor needs API ability: %w", err)
 	//	}
 	//
 	//	// Use the ability
-	//	response, err := apiAbility.(api.CallAnAPI).SendRequest(request)
+	//	response, err := apiAbility.(api.CallAnAPI).SendRequest(request, request.Context())
 	//
 	// Common pattern for ability access:
 	//
@@ -263,32 +256,19 @@ type Actor interface {
 	//	specificAbility := ability.(TargetType)
 	AbilityTo(ability abilities.Ability) (abilities.Ability, error)
 
-	// AttemptsTo performs one or more activities sequentially.
-	// Stops execution immediately if any activity fails (unless using custom failure modes).
+	// AttemptsTo performs one or more activities sequentially. Activity errors
+	// are handled according to FailureMode and reported through the test context.
+	// AttemptsTo itself returns no value.
 	//
 	// Parameters:
 	//   - activities: One or more activities to perform
 	//
-	// Returns:
-	//   - error: The first error encountered during activity execution
-	//
 	// Example:
 	//
-	//	err := actor.AttemptsTo(
+	//	actor.AttemptsTo(
 	//		core.Do("logs into system", login),
 	//		core.Do("creates user account", createUser),
 	//		core.Do("verifies user creation", verifyUser),
-	//	)
-	//	if err != nil {
-	//		return fmt.Errorf("user creation flow failed: %w", err)
-	//	}
-	//
-	// With custom failure modes:
-	//
-	//	actor.AttemptsTo(
-	//		core.Do("critical step", criticalStep),
-	//		core.Do("optional cleanup", cleanup).WithFailureMode(core.Optional()),
-	//		core.Do("final verification", verification),
 	//	)
 	AttemptsTo(activities ...Activity)
 }
@@ -339,7 +319,7 @@ type Actor interface {
 //	Activities should return descriptive errors with context:
 //
 //	func (a *MyActivity) PerformAs(ctx context.Context, actor core.Actor) error {
-//		ability, err := actor.AbilityTo(&api.CallAnAPI{})
+//		ability, err := actor.AbilityTo(api.Using(nil))
 //		if err != nil {
 //			return fmt.Errorf("actor lacks API ability: %w", err)
 //		}
@@ -370,13 +350,17 @@ type Activity interface {
 	// Example:
 	//
 	//	func (s *SendRequestActivity) PerformAs(ctx context.Context, actor core.Actor) error {
-	//		ability, err := actor.AbilityTo(&api.CallAnAPI{})
+	//		ability, err := actor.AbilityTo(api.Using(nil))
 	//		if err != nil {
 	//			return fmt.Errorf("actor needs API ability: %w", err)
 	//		}
 	//
-	//		api := ability.(api.CallAnAPI)
-	//		return api.SendRequest(s.method, s.path, ctx)
+	//		request, err := http.NewRequestWithContext(ctx, s.method, s.path, nil)
+	//		if err != nil {
+	//			return fmt.Errorf("create request: %w", err)
+	//		}
+	//		_, err = ability.(api.CallAnAPI).SendRequest(request, ctx)
+	//		return err
 	//	}
 	PerformAs(ctx context.Context, actor Actor) error
 
@@ -400,9 +384,8 @@ type Activity interface {
 	// Returns:
 	//   - FailureMode: How to handle failures (FailFast, ErrorButContinue, Ignore)
 	//
-	// Default behavior:
-	//	- Most activities use FailFast (stop on first error)
-	//	- Can be overridden with WithFailureMode() on core.Do activities
+	// Built-in tasks and interactions use FailFast. Custom Activity
+	// implementations can return another mode.
 	//
 	// Example:
 	//
@@ -427,11 +410,16 @@ type Activity interface {
 //
 //	// API call interaction
 //	sendGetRequest := core.Do("sends GET request to /users", func(ctx context.Context, actor core.Actor) error {
-//		ability, err := actor.AbilityTo(&api.CallAnAPI{})
+//		ability, err := actor.AbilityTo(api.Using(nil))
 //		if err != nil {
 //			return fmt.Errorf("actor needs API ability: %w", err)
 //		}
-//		return ability.(api.CallAnAPI).SendGetRequest("/users")
+//		request, err := http.NewRequestWithContext(ctx, http.MethodGet, "/users", nil)
+//		if err != nil {
+//			return fmt.Errorf("create GET request: %w", err)
+//		}
+//		_, err = ability.(api.CallAnAPI).SendRequest(request, ctx)
+//		return err
 //	})
 //
 //	// Database query interaction
@@ -521,7 +509,7 @@ type Interaction interface {
 //	}
 //
 //	func (c *CreateUserTask) PerformAs(ctx context.Context, actor core.Actor) error {
-//		return actor.AttemptsTo(
+//		return core.TaskWhere("creates a user",
 //			core.Do("validates user data", func(ctx context.Context, a core.Actor) error {
 //				return validateUserData(c.userData)
 //			}),
@@ -531,7 +519,7 @@ type Interaction interface {
 //			core.Do("verifies user exists", func(ctx context.Context, a core.Actor) error {
 //				return verifyUserExists(c.userData.Email)
 //			}),
-//		)
+//		).PerformAs(ctx, actor)
 //	}
 //
 //	func (c *CreateUserTask) Description() string {
@@ -562,15 +550,21 @@ type Task interface {
 // Creating Questions:
 //
 //	// Using core.QuestionAbout (convenience factory)
-//	userCount := core.QuestionAbout("user count", func(_ context.Context, actor core.Actor) (int, error) {
-//		db := actor.AbilityTo(&database.DatabaseAbility{}).(database.DatabaseAbility)
-//		return db.QueryRow("SELECT COUNT(*) FROM users").Int()
+//	userCount := core.QuestionAbout[any]("user count", func(_ context.Context, actor core.Actor) (any, error) {
+//		ability, err := actor.AbilityTo(&database.DatabaseAbility{})
+//		if err != nil {
+//			return 0, err
+//		}
+//		return ability.(database.DatabaseAbility).QueryRow("SELECT COUNT(*) FROM users").Int()
 //	})
 //
 //	// Using core.QuestionAbout
 //	userName := core.QuestionAbout("current user name", func(ctx context.Context, actor core.Actor) (string, error) {
-//		session := actor.AbilityTo(&auth.SessionAbility{}).(auth.SessionAbility)
-//		return session.GetCurrentUser().Name, nil
+//		ability, err := actor.AbilityTo(&auth.SessionAbility{})
+//		if err != nil {
+//			return "", err
+//		}
+//		return ability.(auth.SessionAbility).GetCurrentUser().Name, nil
 //	})
 //
 // Using Questions:
@@ -584,7 +578,7 @@ type Task interface {
 //
 //	// With expectations (recommended)
 //	actor.AttemptsTo(
-//		ensure.That(userCount, expectations.GreaterThan(0)),
+//		ensure.That(userCount, expectations.IsGreaterThan(0)),
 //		ensure.That(userName, expectations.ContainsSubstring("admin")),
 //	)
 //
@@ -601,14 +595,24 @@ type Task interface {
 //
 //	// Complex type question
 //	userProfile := core.QuestionAbout("user profile", func(_ context.Context, actor core.Actor) (*UserProfile, error) {
-//		db := actor.AbilityTo(&database.DatabaseAbility{}).(database.DatabaseAbility)
-//		return db.GetUserProfile(actor.Name())
+//		ability, err := actor.AbilityTo(&database.DatabaseAbility{})
+//		if err != nil {
+//			return nil, err
+//		}
+//		return ability.(database.DatabaseAbility).GetUserProfile(actor.Name())
 //	})
 //
 //	// Collection question
-//	activeOrders := core.QuestionAbout("active orders", func(_ context.Context, actor core.Actor) ([]Order, error) {
-//		api := actor.AbilityTo(&api.CallAnAPI{}).(api.CallAnAPI)
-//		response, err := api.Get("/orders?status=active")
+//	activeOrders := core.QuestionAbout("active orders", func(ctx context.Context, actor core.Actor) ([]Order, error) {
+//		ability, err := actor.AbilityTo(api.Using(nil))
+//		if err != nil {
+//			return nil, err
+//		}
+//		request, err := http.NewRequestWithContext(ctx, http.MethodGet, "/orders?status=active", nil)
+//		if err != nil {
+//			return nil, err
+//		}
+//		response, err := ability.(api.CallAnAPI).SendRequest(request, ctx)
 //		if err != nil {
 //			return nil, err
 //		}
@@ -617,8 +621,11 @@ type Task interface {
 //
 //	// Error-state question
 //	lastError := core.QuestionAbout("last system error", func(_ context.Context, actor core.Actor) (*ErrorInfo, error) {
-//		log := actor.AbilityTo(&logging.LogAbility{}).(logging.LogAbility)
-//		return log.GetLastError()
+//		ability, err := actor.AbilityTo(&logging.LogAbility{})
+//		if err != nil {
+//			return nil, err
+//		}
+//		return ability.(logging.LogAbility).GetLastError()
 //	})
 //
 // Question Design Patterns:
@@ -633,20 +640,23 @@ type Task interface {
 //
 //     // State Question
 //     systemStatus := core.QuestionAbout("system status", func(_ context.Context, actor core.Actor) (SystemStatus, error) {
-//     monitor := actor.AbilityTo(&monitoring.Ability{}).(monitoring.Ability)
-//     return monitor.GetCurrentStatus()
+//     ability, err := actor.AbilityTo(&monitoring.Ability{})
+//     if err != nil { return SystemStatus{}, err }
+//     return ability.(monitoring.Ability).GetCurrentStatus()
 //     })
 //
 //     // Calculation Question
 //     averageResponseTime := core.QuestionAbout("average response time", func(_ context.Context, actor core.Actor) (time.Duration, error) {
-//     metrics := actor.AbilityTo(&metrics.Ability{}).(metrics.Ability)
-//     return metrics.CalculateAverageResponseTime(time.Hour)
+//     ability, err := actor.AbilityTo(&metrics.Ability{})
+//     if err != nil { return 0, err }
+//     return ability.(metrics.Ability).CalculateAverageResponseTime(time.Hour)
 //     })
 //
 //     // Validation Question
 //     hasValidLicense := core.QuestionAbout("has valid license", func(_ context.Context, actor core.Actor) (bool, error) {
-//     license := actor.AbilityTo(&license.Ability{}).(license.Ability)
-//     return license.IsValid()
+//     ability, err := actor.AbilityTo(&license.Ability{})
+//     if err != nil { return false, err }
+//     return ability.(license.Ability).IsValid()
 //     })
 //
 // Best Practices:
@@ -687,7 +697,7 @@ type Question[T any] interface {
 	//			return 0, fmt.Errorf("actor needs database ability: %w", err)
 	//		}
 	//
-	//		return db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Int()
+	//		return db.(database.DatabaseAbility).QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Int()
 	//	}
 	//
 	// Usage:

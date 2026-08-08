@@ -35,8 +35,16 @@ func performActivity(ctx context.Context, actor Actor, activity Activity) error 
 //
 //	// Create a simple interaction
 //	sendRequest := core.Do("sends GET request", func(ctx context.Context, actor core.Actor) error {
-//		api := actor.AbilityTo(&api.CallAnAPI{}).(api.CallAnAPI)
-//		return api.SendGetRequest("/users")
+//		ability, err := actor.AbilityTo(api.Using(nil))
+//		if err != nil {
+//			return fmt.Errorf("actor needs API ability: %w", err)
+//		}
+//		request, err := http.NewRequestWithContext(ctx, http.MethodGet, "/users", nil)
+//		if err != nil {
+//			return fmt.Errorf("create GET request: %w", err)
+//		}
+//		_, err = ability.(api.CallAnAPI).SendRequest(request, ctx)
+//		return err
 //	})
 //
 //	// Create a composed task
@@ -46,18 +54,14 @@ func performActivity(ctx context.Context, actor Actor, activity Activity) error 
 //		core.Do("verifies user creation", verifyUser),
 //	)
 //
-//	// Execute activities
-//	err := actor.AttemptsTo(sendRequest, createUser)
+//	// Execute activities; failures are reported through the test context.
+//	actor.AttemptsTo(sendRequest, createUser)
 //
 // Error Handling:
 //
-//	All implementations use FailFast mode by default, meaning execution
-//	stops on the first error. Custom failure modes can be set using
-//	WithFailureMode() on activities that support it.
-//
-//	// Non-critical activity that continues on error
-//	cleanup := core.Do("cleans up test data", cleanupData)
-//	// Note: WithFailureMode would need to be implemented on core.Do
+//	Built-in tasks and interactions use FailFast. The Interaction returned by
+//	Do has no WithFailureMode method; custom Activity implementations can return
+//	a different FailureMode.
 
 // task implements the Task interface for composed activities.
 // Tasks represent high-level business operations that consist of multiple
@@ -176,14 +180,11 @@ func (t *task) FailureMode() FailureMode {
 //
 // Task Execution:
 //
-//	err := actor.AttemptsTo(
+//	actor.AttemptsTo(
 //		registerUser,
 //		placeOrder,
 //		migrateData,
 //	)
-//	if err != nil {
-//		return fmt.Errorf("test workflow failed: %w", err)
-//	}
 //
 // Best Practices:
 //
@@ -227,11 +228,16 @@ type interaction struct {
 //
 //	// Simple API call interaction
 //	sendGetRequest := core.Do("sends GET request to /users", func(ctx context.Context, actor core.Actor) error {
-//		api, err := actor.AbilityTo(&api.CallAnAPI{})
+//		ability, err := actor.AbilityTo(api.Using(nil))
 //		if err != nil {
 //			return fmt.Errorf("actor needs API ability: %w", err)
 //		}
-//		return api.(api.CallAnAPI).SendGetRequest("/users")
+//		request, err := http.NewRequestWithContext(ctx, http.MethodGet, "/users", nil)
+//		if err != nil {
+//			return fmt.Errorf("create GET request: %w", err)
+//		}
+//		_, err = ability.(api.CallAnAPI).SendRequest(request, ctx)
+//		return err
 //	})
 //
 //	// Database query interaction
@@ -263,7 +269,7 @@ type interaction struct {
 //
 //	// System status check interaction
 //	checkHealth := core.Do("checks system health", func(ctx context.Context, actor core.Actor) error {
-//		health := actor.AbilityTo(&monitoring.HealthAbility{})
+//		health, err := actor.AbilityTo(&monitoring.HealthAbility{})
 //		if err != nil {
 //			return fmt.Errorf("actor needs health check ability: %w", err)
 //		}

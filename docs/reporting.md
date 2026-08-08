@@ -1,316 +1,99 @@
-# Console Reporting
+# Reporting
 
-Verity-BDD предоставляет мощную систему консольного репортинга для визуализации результатов тестирования в реальном времени.
+Verity-BDD reports test lifecycle and activity events through `verity_reporting.Reporter`.
 
-## Overview
+## Default console reporter
 
-ConsoleReporter автоматически отображает информацию о выполнении тестов, включая:
-- Статусы тестов с emoji индикаторами
-- Время выполнения
-- Детали ошибок и проваленных ожиданий
-- Возможность записи вывода в файл
+`verity.NewVerityTest(t, scene)` uses a console reporter unless `scene.Reporter` is set. A typical test prints one test-start line, one line for each **completed** activity, and one test-finish line:
 
-## Basic Usage
-
-### Автоматическая интеграция с TestContext
-
-```go
-func TestAPITesting(t *testing.T) {
-    test := verity.NewVerityTest(t, verity.Scene{})
-
-    actor := test.ActorCalled("APITester").WhoCan(api.CallAnApiAt("https://jsonplaceholder.typicode.com"))
-
-    actor.AttemptsTo(
-        api.SendGetRequest("/posts"),
-        ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-    )
-}
-```
-
-Вывод в консоль:
-```
+```text
 🚀 Starting: TestAPITesting
-  🔄 Sends GET request to /posts
-  ✅ Sends GET request to /posts (0.21s)
-  🔄 Ensures that the last response status code equals 200
-  ✅ Ensures that the last response status code equals 200 (0.00s)
+  ✅ APITester sends GET request to /posts (0.21s)
+  ✅ APITester ensures that the last response status code equals 200 (0.00s)
 ✅ TestAPITesting: PASSED (0.26s)
 ```
 
-### Ручная настройка репортера
+`ConsoleReporter.OnStepStart` tracks nesting but emits no separate start line. In particular, current output does not include `🔄` lines.
+
+To select the reporter explicitly or redirect output:
 
 ```go
-import (
-    "github.com/verity-bdd/verity-bdd/verity_reporting/console_reporter"
-    verity "github.com/verity-bdd/verity-bdd"
-)
-
 func TestCustomReporting(t *testing.T) {
     reporter := console_reporter.NewConsoleReporter()
+    reporter.SetOutput(os.Stdout)
 
-    test := verity.NewVerityTestWithReporter(t, reporter)
+    test := verity.NewVerityTestWithReporter(
+        context.Background(),
+        t,
+        reporter,
+    )
 
-    // ... тестовый код
+    actor := test.ActorCalled("API tester").WhoCan(
+        api.CallAnApiAt("https://api.example.com"),
+    )
+    actor.AttemptsTo(api.SendGetRequest("/health"))
 }
 ```
 
-## Custom Reporter Configuration
-
-## Allure Reporter
-
-Для CI и rich-отчетов можно использовать нативный Allure-репортер.
+`NewVerityTestWithReporter` requires `(context.Context, verity.TestContext, verity_reporting.Reporter)`. Alternatively, configure both values in a scene:
 
 ```go
-import (
-    "context"
+test := verity.NewVerityTest(t, verity.Scene{
+    Context:  ctx,
+    Reporter: reporter,
+})
+```
 
-    "github.com/verity-bdd/verity-bdd/verity_reporting/allure_reporter"
-    verity "github.com/verity-bdd/verity-bdd"
-)
+Each test should create its own reporter instance. `ConsoleReporter` synchronizes its state, but sharing one reporter across simultaneously running tests would also share its current-test and indentation state.
 
+## Reporter contract
+
+A custom reporter implements:
+
+```go
+type Reporter interface {
+    OnTestStart(testName string)
+    OnTestFinish(result verity_reporting.TestResult)
+    OnStepStart(stepDescription string)
+    OnStepFinish(stepResult verity_reporting.TestResult)
+    SetOutput(io.Writer)
+}
+```
+
+Reporter callback results expose `Name`, `Status`, duration in seconds, an error, and attachments. These `verity_reporting.TestResult` and `verity_reporting.Status` types are distinct from the root `verity.TestResult` and `verity.Status` core-state types.
+
+`verity_reporting.NewTestRunnerAdapter` wraps a reporter. `NewActivityTracker` and `NewActivityTrackerWithActor` can be used by integrations that need to emit a start/finish pair manually. When an actor name is supplied, a leading `#actor ` placeholder in the activity description is replaced with that name.
+
+## Attachments: current limitation
+
+The reporting contract and Allure reporter support attachments supplied in a `TestResult`. However, the normal actor execution path currently calls the activity tracker without attachments. There is no public activity API for collecting or forwarding step-level attachments, so `OnStepFinish` receives no produced attachments during normal Verity execution.
+
+During test shutdown, Verity serializes actor notes into a single test-level attachment named `notes` with content type `application/json` when notes exist. This attachment is passed to `OnTestFinish`.
+
+Do not describe activities or custom attachment sources as operational until the execution pipeline exposes and forwards them.
+
+## Allure reporter
+
+```go
 func TestWithAllure(t *testing.T) {
     reporter := allure_reporter.NewAllureReporterWithDir("allure-results")
-
-    test := verity.NewVerityTest(t, verity.Scene{
-        Context:  context.Background(),
-        Reporter: reporter,
-    })
+    test := verity.NewVerityTestWithReporter(context.Background(), t, reporter)
 
     actor := test.ActorCalled("Tester")
     actor.AttemptsTo(
-        // ... активности
+        verity.Do("performs an action", func(context.Context, verity.Actor) error {
+            return nil
+        }),
     )
 }
 ```
 
-Репортер сохраняет:
-- `*-result.json` с test status и шагами
-- файлы вложений (`source`) для test-level и step-level attachments
+The reporter writes `*-result.json` files, nested step data, and any attachments actually provided by callbacks. With the current built-in execution path, this means test-level notes can be persisted, while normal step-level attachments are empty.
 
-Локальный просмотр отчета:
+View results with an installed Allure CLI:
 
 ```bash
 allure serve allure-results
 ```
 
-### Настройка вывода в файл
-
-```go
-import (
-    "os"
-    "github.com/verity-bdd/verity-bdd/verity_reporting/console_reporter"
-    verity "github.com/verity-bdd/verity-bdd"
-)
-
-reporter := console_reporter.NewConsoleReporter()
-
-// Создаем файл для вывода
-file, err := os.Create("test-results.txt")
-if err != nil {
-    log.Fatal(err)
-}
-defer file.Close()
-
-// Настраиваем репортер на запись в файл
-reporter.SetOutput(file)
-
-test := verity.NewVerityTestWithReporter(t, reporter)
-
-// ... тестовый код
-```
-
-### Методы управления
-
-```go
-import (
-    "os"
-    "github.com/verity-bdd/verity-bdd/verity_reporting/console_reporter"
-)
-
-reporter := console_reporter.NewConsoleReporter()
-
-// Установка вывода (файл или консоль)
-reporter.SetOutput(os.Stdout)  // Консольный вывод
-reporter.SetOutput(file)      // Вывод в файл
-```
-
-## File Output
-
-ConsoleReporter может записывать вывод в файл для последующего анализа:
-
-```go
-import (
-    "os"
-    "github.com/verity-bdd/verity-bdd/verity_reporting/console_reporter"
-    verity "github.com/verity-bdd/verity-bdd"
-)
-
-// Создаем файл для вывода
-file, err := os.Create("test-results.txt")
-if err != nil {
-    t.Fatalf("Failed to create output file: %v", err)
-}
-defer file.Close()
-
-// Создаем репортер с выводом в файл
-reporter := console_reporter.NewConsoleReporter()
-reporter.SetOutput(file)
-
-test := verity.NewVerityTestWithReporter(t, reporter)
-
-// ... тестовый код
-```
-
-Файл будет содержать полный вывод тестов в том же формате, что и консоль.
-
-## Output Format
-
-### Статусы тестов
-
-| Статус | Emoji | Описание |
-|--------|-------|----------|
-| ✅ | ✅ | Тест успешно пройден |
-| ❌ | ❌ | Тест провален |
-| ⚠️ | ⚠️ | Предупреждение (неиспользованный actor) |
-
-### Формат вывода
-
-```
-✅ TestName (duration)
-❌ TestName (duration)
-   Error: error message
-   Stack trace: stack information
-⚠️ TestName (duration)
-   Warning: warning message
-```
-
-### Пример полного вывода
-
-```
-🚀 Starting: TestAPITesting
-  🔄 Sends GET request to /posts
-  ✅ Sends GET request to /posts (0.21s)
-  🔄 Ensures that the last response status code equals 200
-  ✅ Ensures that the last response status code equals 200 (0.00s)
-✅ TestAPITesting: PASSED (0.26s)
-
-🚀 Starting: TestFailedExpectation
-  🔄 Sends GET request to /posts
-  ❌ Sends GET request to /posts (0.15s)
-     Error: Expected status code to equal 200, but got 404
-❌ TestFailedExpectation: FAILED (0.15s)
-```
-
-## Integration Information
-
-### Совместимость с TestContext API
-
-ConsoleReporter автоматически интегрирован с TestContext API:
-
-```go
-test := verity.NewVerityTest(t, verity.Scene{})  // Автоматически использует ConsoleReporter
-```
-
-### Интеграция с VerityTest
-
-```go
-import (
-    "github.com/verity-bdd/verity-bdd/verity_reporting/console_reporter"
-    verity "github.com/verity-bdd/verity-bdd"
-)
-
-test := verity.NewVerityTestWithReporter(t, customReporter)
-```
-
-### Обработка ошибок
-
-Репортер автоматически:
-- Логирует ошибки записи в файл
-- Обрабатывает проблемы с доступом к файловой системе
-- Предоставляет информативные сообщения об ошибках
-
-### Потокобезопасность
-
-ConsoleReporter потокобезопасен и может использоваться в параллельных тестах. Каждая тестовая сессия создает изолированный репортер.
-
-## Migration from Legacy Testing
-
-### Старый подход (ручная обработка ошибок)
-
-```go
-func TestOldStyle(t *testing.T) {
-    test := verity.NewVerityTest(t, verity.Scene{})
-
-    actor := test.ActorCalled("Tester").WhoCan(api.CallAnApiAt("https://api.example.com"))
-
-    err := actor.AttemptsTo(
-        api.SendGetRequest("/users"),
-        ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-    )
-    if err != nil {
-        t.Errorf("Test failed: %v", err)
-    }
-}
-```
-
-### Новый подход (автоматический репортинг)
-
-```go
-func TestNewStyle(t *testing.T) {
-    test := verity.NewVerityTest(t, verity.Scene{})
-
-    actor := test.ActorCalled("Tester").WhoCan(api.CallAnApiAt("https://api.example.com"))
-
-    actor.AttemptsTo(
-        api.SendGetRequest("/users"),
-        ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-    )
-    // Статус и ошибки автоматически отображаются в консоли
-}
-```
-
-## Best Practices
-
-1. **Используйте TestContext API** для автоматического репортинга
-2. **Настраивайте файловый вывод** для CI/CD пайплайнов
-3. **Используйте descripting имена** для акторов для лучшей читаемости
-5. **Настройте quiet mode** для CI сред, где важен только файловый вывод
-
-## Troubleshooting
-
-### Файл не создается
-
-```go
-err := reporter.EnableFileOutput("results.txt")
-if err != nil {
-    // Проверьте права доступа и директорию
-    log.Printf("Failed to create file: %v", err)
-}
-```
-
-### Нет вывода в консоли
-
-Убедитесь, что репортер настроен на вывод в консоль:
-```go
-import (
-    "os"
-    "github.com/verity-bdd/verity-bdd/verity_reporting/console_reporter"
-)
-
-reporter := console_reporter.NewConsoleReporter()
-reporter.SetOutput(os.Stdout)  // Явный вывод в консоль
-```
-
-### Проблемы с параллельными тестами
-
-Каждый тест должен создавать собственный TestContext:
-```go
-import (
-    verity "github.com/verity-bdd/verity-bdd"
-)
-
-func TestParallel1(t *testing.T) {
-    test := verity.NewVerityTest(t, verity.Scene{})
-    // ... тестовый код
-}
-```
+`AllureReporter.SetOutput` is intentionally a no-op because output is written to the configured results directory.

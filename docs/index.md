@@ -6,7 +6,7 @@ Welcome to the comprehensive documentation for Verity-BDD - a Screenplay Pattern
 
 ### 🚀 Getting Started
 - [**Main README**](../README.md) - Quick start guide and overview
-- [**Core Concepts**](#core-concepts) - Understanding Screenplay Pattern basics
+- [**Core Concepts**](../README.md#core-api) - Understanding Screenplay Pattern basics
 
 ### 🛠️ Developer Guides
 - [**Creating Custom Abilities**](abilities.md) - Complete guide to creating your own abilities
@@ -14,7 +14,7 @@ Welcome to the comprehensive documentation for Verity-BDD - a Screenplay Pattern
 - [**Templates**](templates/) - Ready-to-use templates for common tasks
 
 ### 🔧 Advanced Topics
-- [**API Testing**](../README.md#api-testing) - HTTP API testing capabilities
+- [**API Testing**](../README.md#http-api-testing) - HTTP API testing capabilities
 - [**Task Composition**](../README.md#task-composition) - Building complex workflows
 - [**Multiple Actors**](../README.md#multiple-actors) - Working with different test personas
 
@@ -49,11 +49,13 @@ apiAbility := api.CallAnApiAt("https://api.example.com")
 ### Activities
 Activities represent actions that actors perform:
 ```go
-err := actor.AttemptsTo(
+actor.AttemptsTo(
     api.SendGetRequest("/users"),
     ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
 )
 ```
+
+`AttemptsTo` reports failures through the test context and returns no value.
 
 ## 🚀 Quick Start
 

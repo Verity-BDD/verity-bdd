@@ -1,3 +1,6 @@
+// Package verity_reporting exposes reporter callback contracts and adapters.
+// Its TestResult and Status types are reporter-facing interfaces and are
+// distinct from the root verity package's core TestResult and Status types.
 package verity_reporting
 
 import internalreporting "github.com/verity-bdd/verity-bdd/internal/reporting"
@@ -5,11 +8,13 @@ import internalreporting "github.com/verity-bdd/verity-bdd/internal/reporting"
 // Reporter handles test execution reporting.
 type Reporter = internalreporting.Reporter
 
-// TestResult represents the result of a test or step execution.
+// TestResult represents the result passed to a test or step callback. Duration
+// is measured in seconds. The contract supports attachments, although normal
+// actor execution currently supplies none to step-finish callbacks.
 type TestResult = internalreporting.TestResult
 
 // Attachment represents additional data to include in a report entry.
-// Content should be a serialized payload (for example, JSON).
+// Content contains the payload bytes and ContentType identifies their media type.
 type Attachment = internalreporting.Attachment
 
 // Status represents the status of a test or step.
@@ -35,12 +40,14 @@ func NewTestRunnerAdapter(reporter Reporter) *TestRunnerAdapter {
 	return internalreporting.NewTestRunnerAdapter(reporter)
 }
 
-// NewActivityTracker creates a new activity tracker.
+// NewActivityTracker creates a tracker that emits reporter step callbacks for
+// activity. Call Start before execution and Finish afterward.
 func NewActivityTracker(reporter Reporter, activity string) *ActivityTracker {
 	return internalreporting.NewActivityTracker(reporter, activity)
 }
 
-// NewActivityTrackerWithActor creates a new activity tracker with an actor name.
+// NewActivityTrackerWithActor creates a tracker and replaces a leading
+// "#actor " activity placeholder with actorName in callback descriptions.
 func NewActivityTrackerWithActor(reporter Reporter, activity, actorName string) *ActivityTracker {
 	return internalreporting.NewActivityTrackerWithActor(reporter, activity, actorName)
 }

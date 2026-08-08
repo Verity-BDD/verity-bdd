@@ -77,33 +77,25 @@ func (ta *testActor) AbilityTo(abilityType abilities.Ability) (abilities.Ability
 	return nil, fmt.Errorf("actor '%s' can't %s. Did you give them the ability?", ta.name, abName)
 }
 
-// AttemptsTo executes activities and automatically handles any errors through TestContext.
-// Unlike the legacy API, no manual error checking is required - failures automatically
-// fail the test with descriptive error messages.
+// AttemptsTo executes activities and automatically handles errors through TestContext.
+// No manual error checking is required: failures are recorded on TestContext, and
+// FailFast activities also call FailNow.
 //
 // Example:
 //
-//	// TestContext API - automatic error handling
 //	actor.AttemptsTo(
 //		api.SendGetRequest("/users"),
 //		ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
 //	)
-//
-//	// Legacy API comparison
-//	err := legacyActor.AttemptsTo(
-//		api.SendGetRequest("/users"),
-//		ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-//	)
-//	require.NoError(t, err) // Manual error handling required
 //
 // Parameters:
 //
 //	activities - List of activities to execute in order
 //
 // This method automatically handles different failure modes:
-//   - FailFast: Stops test execution immediately on error
-//   - ErrorButContinue: Logs error but continues with remaining activities
-//   - Ignore: Silently ignores the error and continues
+//   - FailFast: Marks the test failed and stops execution immediately
+//   - ErrorButContinue: Marks the test failed via Errorf and continues
+//   - Ignore: Logs the error via Logf and continues without failing the test
 func (ta *testActor) AttemptsTo(activities ...core.Activity) {
 	for _, activity := range activities {
 		err := ta.PerformActivity(ta.ctx, activity)

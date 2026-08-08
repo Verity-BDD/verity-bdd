@@ -3,543 +3,269 @@
 ![CI](https://github.com/verity-bdd/verity-bdd/workflows/CI/badge.svg) ![codecov](https://codecov.io/gh/nchursin/verity-bdd/graph/badge.svg) ![Version](https://img.shields.io/github/v/release/nchursin/verity-bdd)
 
 > [!WARNING]
-> This project is still at version 0.x.x. It means I do not guarantee ANY backwards compatibility for ANY changes. I use this project daily and adjust the API to real world usage.
-> The plan is to go v1.x.x in Summer 2026.
+> Verity-BDD is still at version 0.x. Backwards compatibility is not guaranteed before v1.
 
-A Go implementation of the Screenplay Pattern for acceptance testing, focused on API testing capabilities.
+Verity-BDD is a Go implementation of the Screenplay Pattern, focused on acceptance and HTTP API testing. It requires **Go 1.23.4 or later**.
 
-![Verity-BDD](https://raw.githubusercontent.com/nchursin/resources/refs/heads/master/verity-bdd/dark.png)
-
-## Overview
-
-Verity-BDD brings the power of the Screenplay Pattern to Go testing, providing:
-
-- **Actor-centric testing** - Tests describe what actors do, not how they do it
-- **Reusable components** - Build a library of reusable tasks and interactions
-- **Clear domain language** - Tests that read like business requirements
-- **Modular design** - Use only what you need for your testing scenarios
-- **Framework agnostic** - Works with any Go test runner
-
-## Quick Start
-
-### Installation
+## Installation
 
 ```bash
 go get github.com/verity-bdd/verity-bdd
 ```
 
-### Basic Example
+## Quick start
 
 ```go
-package main
+package example
 
 import (
     "testing"
 
+    verity "github.com/verity-bdd/verity-bdd"
     "github.com/verity-bdd/verity-bdd/verity_abilities/api"
     expectations "github.com/verity-bdd/verity-bdd/verity_expectations"
     "github.com/verity-bdd/verity-bdd/verity_expectations/ensure"
-    verity "github.com/verity-bdd/verity-bdd"
 )
 
 func TestAPI(t *testing.T) {
     test := verity.NewVerityTest(t, verity.Scene{})
 
-    // Create an actor with API ability
-    actor := test.ActorCalled("APITester").WhoCan(
-        api.CallAnApiAt("https://jsonplaceholder.typicode.com"),
+    actor := test.ActorCalled("API tester").WhoCan(
+        api.CallAnApiAt("https://api.example.com"),
     )
 
-    // Define test data
-    newPost := map[string]interface{}{
-        "title":  "Test Post",
-        "body":   "This is a test post",
-        "userId": 1,
-    }
-
-    // Test the API
     actor.AttemptsTo(
-        api.SendPostRequest("/posts").
-            WithBody(newPost),
+        api.SendPostRequest("/posts").WithBody(map[string]any{
+            "title": "A test post",
+        }),
         ensure.That(api.LastResponseStatus{}, expectations.Equals(201)),
-        ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("Test Post")),
+        ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("A test post")),
     )
 }
 ```
 
-## Core Concepts
+`AttemptsTo` reports activity failures through the test context and does not return an error. `NewVerityTest` registers cleanup automatically with `testing.T.Cleanup`; calling `Shutdown` explicitly is optional and idempotent.
 
-### Actors
+## Core API
 
-Actors represent people or systems interacting with your application:
+### Actors and abilities
 
-```go
-test := verity.NewVerityTest(t, verity.Scene{})
-
-// Create an actor
-actor := test.ActorCalled("John Doe")
-
-// Give the actor abilities to interact with your system
-actor = actor.WhoCan(api.CallAnApiAt("https://api.example.com"))
-```
-
-### Abilities
-
-Abilities enable actors to interact with different interfaces:
+Actors represent people or external systems. `WhoCan` attaches abilities:
 
 ```go
-test := verity.NewVerityTest(t, verity.Scene{})
-
-// HTTP API ability
-apiAbility := api.CallAnApiAt("https://api.example.com")
-
-// Actor with multiple abilities
-actor := test.ActorCalled("TestUser").WhoCan(
-    apiAbility,
-    // ... other abilities
+actor := test.ActorCalled("Customer").WhoCan(
+    api.CallAnApiAt("https://api.example.com"),
 )
 ```
 
-### Activities
+`verity.Ability` is currently an empty interface, so any Go value can be an ability. Embedding it in a custom interface is optional documentation, not an enforced requirement. Retrieve a typed ability with `verity.AbilityOf[T]`:
 
-Activities represent actions that actors perform:
-
-#### Interactions (low-level actions)
 ```go
-// Send HTTP requests with fluent interface
-api.SendGetRequest("/users")
-api.SendPostRequest("/posts").WithBody(postData)
-api.SendPutRequest("/users/1").WithBody(updatedUser)
-api.SendPatchRequest("/users/1").WithBody(partialUpdate)
-api.SendDeleteRequest("/posts/123")
+apiAbility, err := verity.AbilityOf[api.CallAnAPI](actor)
+if err != nil {
+    return err
+}
+_ = apiAbility
 ```
 
-#### Tasks (high-level business actions)
+### Interactions and tasks
+
+Use `verity.Do` for a custom interaction and `verity.TaskWhere` to compose activities:
+
 ```go
-// Define reusable task
-createUserTask := core.Where(
-    "creates a new user",
-    core.Do("creates a new user", func(a core.Actor) error {
-        req, err := api.NewRequestBuilder("POST", "/users").
-            WithJSONBody(userData).
-            Build()
-        if err != nil {
-            return err
-        }
-        return api.SendRequest(req).PerformAs(a)
+createUser := verity.TaskWhere(
+    "creates a user",
+    verity.Do("prepares user data", func(ctx context.Context, actor verity.Actor) error {
+        return nil
     }),
+    api.SendPostRequest("/users").WithBody(userData),
     ensure.That(api.LastResponseStatus{}, expectations.Equals(201)),
 )
 
-// Use the task
-actor.AttemptsTo(createUserTask)
+actor.AttemptsTo(createUser)
+```
+
+The callback signature is `func(context.Context, verity.Actor) error`. Activities created by `verity.Do` are fail-fast interactions. The exported `Critical`, `NonCritical`, and `Optional` functions return `FailureMode` values for custom activity implementations: `NonCritical` marks the test failed but continues, while `Optional` logs and continues without failing the test. `Interaction` does not currently have a `WithFailureMode` method.
+
+### Task composition
+
+Use `TaskWhere` to name a business workflow and combine reusable activities. Nested tasks stop at the first failing child activity:
+
+```go
+checkout := verity.TaskWhere("checks out an order", addItems, submitPayment, confirmOrder)
+actor.AttemptsTo(checkout)
+```
+
+### Multiple actors
+
+Create separate actors when a scenario has distinct personas. Each actor keeps its own abilities and state:
+
+```go
+admin := test.ActorCalled("Admin").WhoCan(api.CallAnApiAt(baseURL))
+customer := test.ActorCalled("Customer").WhoCan(api.CallAnApiAt(baseURL))
+
+admin.AttemptsTo(createProduct)
+customer.AttemptsTo(orderProduct)
 ```
 
 ### Questions
 
-Questions retrieve information from the system:
+A question implements:
 
 ```go
-// Basic built-in questions
-ensure.That(api.LastResponseStatus{}, expectations.Equals(200))
-ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("success"))
-ensure.That(api.NewResponseHeader("content-type"), expectations.ContainsSubstring("json"))
-
-// Advanced questions with JSON parsing
-type User struct {
-    ID    int    `json:"id"`
-    Name  string `json:"name"`
-    Email string `json:"email"`
+type Question[T any] interface {
+    Description() string
+    AnsweredBy(context.Context, verity.Actor) (T, error)
 }
+```
 
-err := actor.AttemptsTo(
-    api.SendGetRequest("/users/1"),
-    ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
+Create dynamic questions with `verity.QuestionAbout`:
 
-    // Parse response as JSON struct
-    ensure.That(api.LastResponseBodyAsJSON[User](), expectations.Satisfies("has valid user", func(actual User) error {
-        if actual.Name == "" {
-            return fmt.Errorf("user name is empty")
-        }
-        if !strings.Contains(actual.Email, "@") {
-            return fmt.Errorf("invalid email format")
-        }
-        return nil
-    })),
+```go
+name := verity.QuestionAbout("customer name", func(ctx context.Context, actor verity.Actor) (string, error) {
+    return "Alice", nil
+})
 
-    // JSONPath queries
-    ensure.That(api.NewJSONPath("name"), expectations.ContainsSubstring("John")),
-    ensure.That(api.NewJSONPath("data.users.*.email"), expectations.ContainsSubstring("@")),
-
-    // Response time validation
-    ensure.That(api.ResponseTime{}, expectations.IsLessThan(1000)), // milliseconds
+actor.AttemptsTo(
+    ensure.That(name, expectations.Equals("Alice")),
 )
 ```
 
-### Assertions
+Wrap static values with `verity_answerable.ValueOf`.
 
-Verify that expectations are met:
+## HTTP API testing
+
+Give an actor `api.CallAnApiAt(baseURL)` or provide a custom client with `api.Using(client)`.
+
+Request activities support `WithBody`, `WithHeader`, and `WithHeaders`:
+
+```go
+actor.AttemptsTo(
+    api.SendPutRequest("/users/1").
+        WithHeader("Authorization", "Bearer token").
+        WithBody(updatedUser),
+)
+```
+
+For a pre-built `*http.Request`, use `api.SendRequest(req)`. `api.NewRequestBuilder` is also available when request construction needs to be separated from execution.
+
+Current response questions include:
+
+- `api.LastResponseStatus{}` and `api.LastResponseStatusQ` (`int`)
+- `api.LastResponseBody{}` and `api.LastResponseBodyQ` (`string`)
+- `api.NewResponseHeader(name)` (`string`)
+- `api.LastResponseBodyAsJSON[T]()` (`T`)
+- `api.NewJSONPath(path)` (`any`)
+- `api.ResponseTime{}` and `api.ResponseTimeQ` (`int64`, currently always `0`)
+
+`NewJSONPath` decodes JSON into ordinary Go JSON values: objects become `map[string]any`, arrays become `[]any`, numbers become `float64`, and wildcard paths can return `[]any`. Because its question type is `any`, use an `ensure.Expectation[any]` such as `expectations.Equals[any](...)` or create a typed question with `LastResponseBodyAsJSON[T]`.
+
+Response timing is not implemented. `ResponseTime` and `ResponseTimeQ` currently return `0`; do not use them to assert measured latency.
+
+## Expectations
 
 ```go
 ensure.That(question, expectations.Equals(expected))
-ensure.That(question, expectations.ContainsSubstring(substring))
-ensure.That(itemsQuestion, expectations.Includes(expectedItem))
-ensure.That(question, expectations.IsEmpty())
-ensure.That(question, expectations.ArrayLengthEquals(5))
-ensure.That(question, expectations.IsGreaterThan(10))
-ensure.That(question, expectations.ContainsKey("id"))
-
-// Custom validation with Satisfies
-ensure.That(answerable.ValueOf(value), expectations.Satisfies("custom description", func(actual T) error {
-    // Your validation logic here
-    return nil // or error with description
-}))
+ensure.That(stringQuestion, expectations.ContainsSubstring("text"))
+ensure.That(sliceQuestion, expectations.Includes(item))
+ensure.That(question, expectations.IsEmpty[T]())
+ensure.That(question, expectations.ArrayLengthEquals[T](5))
+ensure.That(numberQuestion, expectations.IsGreaterThan(10)) // numberQuestion is verity.Question[any]
+ensure.That(mapQuestion, expectations.ContainsKey("id"))
 ```
 
-## API Testing
+`Equals` uses deep equality. `IsEmpty` supports strings, slices, arrays, and maps. `ArrayLengthEquals` supports arrays, slices, and strings.
 
-### HTTP Requests
+Use `expectations.Satisfies` for custom validation. Dynamic factories such as `EqualsAnswerTo`, `ContainsSubstringAnswerTo`, `ContainsKeyAnswerTo`, `ArrayLengthEqualsAnswerTo`, the numeric `*AnswerTo` variants, and `SatisfiesAnswer` can evaluate another question or use the current context and actor.
+
+`ensure.That(...).After(duration)` delays once before evaluating. It does **not** poll. For polling, use the wait ability:
 
 ```go
-// GET request
-err := actor.AttemptsTo(
-    api.SendGetRequest("/posts"),
-    ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-)
-
-// POST request with JSON data
-newPost := map[string]interface{}{
-    "title":  "New Post",
-    "body":   "Post content",
-    "userId": 1,
-}
-
-err = actor.AttemptsTo(
-    api.SendPostRequest("/posts").
-        WithBody(newPost),
-    ensure.That(api.LastResponseStatus{}, expectations.Equals(201)),
-)
-
-// PUT request with single header
-err = actor.AttemptsTo(
-    api.SendPutRequest("/posts/1").
-        WithHeader("Authorization", "Bearer token").
-        WithBody(updatedData),
-    ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-)
-
-// PUT request with multiple headers
-err = actor.AttemptsTo(
-    api.SendPutRequest("/posts/1").
-        WithHeaders(map[string]string{
-            "Content-Type": "application/json",
-            "Authorization": "Bearer token",
-            "X-Custom-Header": "custom-value",
-        }).
-        WithBody(updatedData),
-    ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-)
-
-// DELETE request
-err = actor.AttemptsTo(
-    api.SendDeleteRequest("/posts/1"),
-    ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
+actor.AttemptsTo(
+    wait.Until(statusQuestion, expectations.Equals("ready")).
+        For(10 * time.Second).
+        CheckingEvery(250 * time.Millisecond),
 )
 ```
 
-### Request Building
+Use `wait.UntilReceived(channel).For(timeout)` to wait for a channel value.
+
+## Notes
+
+Attach `take_notes.UsingEmptyNotepad()` to an actor, record values with `TakeNoteOf(...).As(...)`, and ask for them with `Note[T]`:
 
 ```go
-// Fluent request building
-err = actor.AttemptsTo(
-    api.SendPostRequest("/posts").
-        WithHeader("Content-Type", "application/json").
-        WithHeader("Authorization", "Bearer token").
-        WithBody(postData),
-)
-```
+actor := test.ActorCalled("Nina").WhoCan(take_notes.UsingEmptyNotepad())
+actor.AttemptsTo(take_notes.TakeNoteOf("Bearer abc123").As("auth token"))
 
-### Response Validation
-
-```go
-err := actor.AttemptsTo(
-    api.SendGetRequest("/posts/1").
-        WithHeader("Accept", "application/json"),
-    ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-    ensure.That(api.LastResponseBody{}, expectations.ContainsSubstring("title")),
-    ensure.That(api.NewResponseHeader("content-type"), expectations.ContainsSubstring("json")),
-)
-```
-
-## Console Reporting
-
-Verity-BDD provides automatic console reporting for test results with emoji indicators, timing information, and detailed error messages.
-
-### Automatic Integration
-
-The TestContext API automatically provides console reporting:
-
-```go
-func TestAPITesting(t *testing.T) {
-    test := verity.NewVerityTest(t, verity.Scene{})
-
-    actor := test.ActorCalled("APITester").WhoCan(api.CallAnApiAt("https://jsonplaceholder.typicode.com"))
-
-    actor.AttemptsTo(
-        api.SendGetRequest("/posts"),
-        ensure.That(api.LastResponseStatus{}, expectations.Equals(200)),
-    )
-}
-```
-
-Console output:
-```
-🚀 Starting: TestAPITesting
-  🔄 Sends GET request to /posts
-  ✅ Sends GET request to /posts (0.21s)
-  🔄 Ensures that the last response status code equals 200
-  ✅ Ensures that the last response status code equals 200 (0.00s)
-✅ TestAPITesting: PASSED (0.26s)
-```
-
-### Output Format
-
-| Status | Emoji | Description |
-|--------|-------|-------------|
-| ✅ | ✅ | Test passed |
-| ❌ | ❌ | Test failed |
-| ⚠️ | ⚠️ | Warning (unused actor) |
-
-Example output:
-```
-🚀 Starting: TestAPITesting
-  🔄 Sends GET request to /posts
-  ✅ Sends GET request to /posts (0.21s)
-  🔄 Ensures that the last response status code equals 200
-  ✅ Ensures that the last response status code equals 200 (0.00s)
-✅ TestAPITesting: PASSED (0.26s)
-
-🚀 Starting: TestFailedExpectation
-  🔄 Sends GET request to /posts
-  ❌ Sends GET request to /posts (0.15s)
-     Error: Expected status code to equal 200, but got 404
-❌ TestFailedExpectation: FAILED (0.15s)
-```
-
-### Custom Configuration
-
-```go
-import (
-    "os"
-    "github.com/verity-bdd/verity-bdd/verity_reporting/console_reporter"
-    verity "github.com/verity-bdd/verity-bdd"
-)
-
-// Create custom console reporter
-reporter := console_reporter.NewConsoleReporter()
-
-test := verity.NewVerityTestWithReporter(t, reporter)
-```
-
-For detailed documentation on console reporting, see [docs/reporting.md](docs/reporting.md).
-
-### File Output
-
-```go
-import (
-    "os"
-    "github.com/verity-bdd/verity-bdd/verity_reporting/console_reporter"
-    verity "github.com/verity-bdd/verity-bdd"
-)
-
-// Create file for output
-file, err := os.Create("test-results.txt")
+token, err := take_notes.Note[string]("auth token").AnsweredBy(test.Context(), actor)
 if err != nil {
-    t.Fatalf("Failed to create file: %v", err)
+    t.Fatal(err)
 }
-defer file.Close()
+_ = token
+```
 
-// Create reporter with file output
+## Reporting
+
+The default reporter writes test start, completed-step, and test-finish lines to stdout. `OnStepStart` tracks nesting but does not print a separate “in progress” line.
+
+Supply a reporter either in `Scene` or with the three-argument helper:
+
+```go
 reporter := console_reporter.NewConsoleReporter()
-reporter.SetOutput(file)
+reporter.SetOutput(os.Stdout)
 
-test := verity.NewVerityTestWithReporter(t, reporter)
+test := verity.NewVerityTestWithReporter(context.Background(), t, reporter)
 ```
 
-For detailed documentation on console reporting, see [docs/reporting.md](docs/reporting.md).
-
-## Allure Reporting
-
-Verity-BDD includes a native Allure reporter that writes Allure 2 result files, step data, and attachments.
+The native Allure reporter writes Allure 2 result JSON:
 
 ```go
-import (
-    "context"
-
-    "github.com/verity-bdd/verity-bdd/verity_reporting/allure_reporter"
-    verity "github.com/verity-bdd/verity-bdd"
-)
-
-func TestWithAllure(t *testing.T) {
-    reporter := allure_reporter.NewAllureReporterWithDir("allure-results")
-
-    test := verity.NewVerityTest(t, verity.Scene{
-        Context:  context.Background(),
-        Reporter: reporter,
-    })
-
-    actor := test.ActorCalled("Tester")
-    actor.AttemptsTo(
-        // your activities
-    )
-}
+reporter := allure_reporter.NewAllureReporterWithDir("allure-results")
+test := verity.NewVerityTestWithReporter(context.Background(), t, reporter)
 ```
 
-Generate a local HTML report after test run:
+The public reporting model can represent step attachments, but the actor execution pipeline currently finishes steps without producing any. Built-in test shutdown supplies only the test-level `notes` JSON attachment when actors have notes. Custom reporter implementations should therefore expect `OnStepFinish` attachments to be empty in normal Verity execution.
+
+The root `verity.TestResult`/`verity.Status` types describe core test state. `verity_reporting.TestResult`/`verity_reporting.Status` are separate callback contracts used by reporters.
+
+See [docs/reporting.md](docs/reporting.md) for reporter details.
+
+## Public package architecture
+
+Production code is exposed through these importable packages:
+
+- `github.com/verity-bdd/verity-bdd` — actors, activities, questions, test lifecycle
+- `github.com/verity-bdd/verity-bdd/verity_abilities/api` — HTTP ability, requests, response questions
+- `github.com/verity-bdd/verity-bdd/verity_abilities/take_notes` — actor notes
+- `github.com/verity-bdd/verity-bdd/verity_abilities/wait` — polling and channel waits
+- `github.com/verity-bdd/verity-bdd/verity_answerable` — static value questions
+- `github.com/verity-bdd/verity-bdd/verity_expectations` — expectation factories
+- `github.com/verity-bdd/verity-bdd/verity_expectations/ensure` — assertion activities
+- `github.com/verity-bdd/verity-bdd/verity_reporting` — reporter contracts and adapters
+- `github.com/verity-bdd/verity-bdd/verity_reporting/console_reporter` — console reporter
+- `github.com/verity-bdd/verity-bdd/verity_reporting/allure_reporter` — Allure reporter
+
+`verity_abilities` is an organizational directory, not an importable production package. Implementation packages under `internal` are not public API.
+
+## More documentation
+
+- [Documentation index](docs/index.md)
+- [Creating custom abilities](docs/abilities.md)
+- [Reporting](docs/reporting.md)
+- [Satisfies examples](docs/SATISFIES_EXAMPLES.md)
+- [Working Go examples](examples/)
+
+Run the examples and test suite with:
 
 ```bash
-allure serve allure-results
-```
-
-## Working Examples
-
-The `examples/` directory contains working examples with real APIs:
-
-- `basic_test.go` - JSONPlaceholder API testing examples including basic operations, error scenarios, and multiple actors
-- `jsonplaceholder_test.go` - Additional JSONPlaceholder API examples with CRUD operations
-- `satisfies_demo_test.go` - Comprehensive examples of custom `Satisfies` expectations including go-cmp integration
-
-Run examples:
-
-```bash
-go test ./examples -v
-```
-
-For detailed `Satisfies` examples, see [docs/SATISFIES_EXAMPLES.md](docs/SATISFIES_EXAMPLES.md).
-
-## Architecture
-
-### Core Components
-
-- **github.com/verity-bdd/verity-bdd** - Core Screenplay API, testing API, and answerable helpers
-- **github.com/verity-bdd/verity-bdd/verity_abilities** - Default ability contracts and ability packages
-- **github.com/verity-bdd/verity-bdd/verity_expectations** - Expectations and assertion helpers
-- **github.com/verity-bdd/verity-bdd/verity_expectations/ensure** - Ensure activities
-- **github.com/verity-bdd/verity-bdd/verity_reporting** - Reporting contracts and adapters
-- **github.com/verity-bdd/verity-bdd/verity_reporting/console_reporter** - Console reporter
-- **github.com/verity-bdd/verity-bdd/verity_reporting/allure_reporter** - Allure reporter
-
-### Design Principles
-
-1. **Composable** - Build complex behaviors from simple components
-2. **Reusable** - Create libraries of tasks and interactions
-3. **Readable** - Tests that read like business specifications
-4. **Extensible** - Add new abilities and integrations
-5. **Type-safe** - Leverage Go's type system for safety
-
-## Advanced Usage
-
-### Custom Interactions
-
-```go
-customInteraction := core.Do("performs custom action", func(actor core.Actor) error {
-    // Your custom logic here
-    return nil
-})
-
-actor.AttemptsTo(customInteraction)
-```
-
-### Custom Questions
-
-```go
-customQuestion := core.QuestionAbout[int]("custom value", func(actor core.Actor, ctx context.Context) (int, error) {
-    // Your custom logic here
-    return 42, nil
-})
-
-ensure.That(customQuestion, expectations.Equals(42))
-```
-
-### Custom Expectations with Satisfies
-
-Create custom expectations using the `Satisfies` function for complex validation logic:
-
-```go
-// Simple custom validation
-actor.AttemptsTo(
-    ensure.That(answerable.ValueOf(age), expectations.Satisfies("is positive number", func(actual int) error {
-        if actual <= 0 {
-            return fmt.Errorf("expected positive value, but got %d", actual)
-        }
-        return nil
-    })),
-)
-
-// Advanced struct comparison with go-cmp
-actor.AttemptsTo(
-    ensure.That(answerable.ValueOf(actualUser), expectations.Satisfies("matches expected user", func(actual User) error {
-        if diff := cmp.Diff(expectedUser, actual); diff != "" {
-            return fmt.Errorf("user mismatch:\n%s", diff)
-        }
-        return nil
-    })),
-)
-
-// Complex business logic validation
-actor.AttemptsTo(
-    ensure.That(answerable.ValueOf(order), expectations.Satisfies("has valid order data", func(actual Order) error {
-        if !strings.HasPrefix(actual.ID, "ORD-") {
-            return fmt.Errorf("order ID must start with ORD-, got %s", actual.ID)
-        }
-        if actual.Amount <= 0 {
-            return fmt.Errorf("order amount must be positive, got %f", actual.Amount)
-        }
-        // Add more validation logic...
-        return nil
-    })),
-)
-```
-
-The `Satisfies` function takes:
-- A description string that appears in test failure messages
-- A validation function that returns `nil` for success or an error for failure
-
-This enables powerful, type-safe custom validations while maintaining the Screenplay Pattern's readable test structure.
-
-### Task Composition
-
-```go
-// Build complex workflows from simple tasks
-setupTask := core.Where("setup test data", setupDataAction)
-testTask := core.Where("run test scenario", testAction)
-cleanupTask := core.Where("cleanup test data", cleanupAction)
-
-actor.AttemptsTo(
-    setupTask,
-    testTask,
-    cleanupTask,
-)
-```
-
-### Multiple Actors
-
-```go
-test := verity.NewVerityTest(t, verity.Scene{})
-
-admin := test.ActorCalled("Admin").WhoCan(api.CallAnApiAt(baseURL))
-user := test.ActorCalled("RegularUser").WhoCan(api.CallAnApiAt(baseURL))
-
-// Admin creates resources
-admin.AttemptsTo(createResourceTask)
-
-// User interacts with resources
-user.AttemptsTo(accessResourceTask)
+go test ./...
 ```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues and pull requests.
+Contributions are welcome. Open an issue to discuss defects or proposed changes, and submit focused pull requests with tests and updated documentation where applicable.
 
 ## License
-Apache 2.0 - see LICENSE file for details.
+
+Verity-BDD is licensed under the [Apache License 2.0](LICENSE).
