@@ -25,4 +25,4 @@ Remove the old exported names without deprecated aliases. Use the same names int
 
 ## Consequences
 
-Callers must migrate to the new names before upgrading. Existing question behavior, request-building behavior, fluent methods, and the exported `ResponseHeader`, `JSONPath`, and `RequestBuilder` types remain unchanged. A repository-wide, type-aware source policy test prevents constructor-oriented `New*` factories for questions, activities, interactions, and fluent builders that terminate in those contracts from being introduced in public non-`internal` packages. The policy retains only the issue's explicitly named test-harness, note-book, and reporting constructor exclusions, matched by package-qualified symbol.
+Callers must migrate to the new names before upgrading. Existing question behavior, request-building behavior, fluent methods, and the exported `ResponseHeader`, `JSONPath`, and `RequestBuilder` types remain unchanged. Compile-time signature contracts cover the new public entry points, while API naming remains an explicit design and review decision rather than a repository-wide restriction on `New*` declarations.
