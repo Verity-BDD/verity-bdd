@@ -115,11 +115,14 @@ jobs:
         retention-days: 30
 
   lint:
-    name: golangci-lint
+    name: golangci-lint and release policy
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Test release workflow contracts
+      run: python3 -m unittest discover -s .github/scripts/release/tests -p 'test_*.py' -v
 
     - name: Setup Go
       uses: actions/setup-go@v5
