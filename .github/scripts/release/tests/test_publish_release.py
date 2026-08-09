@@ -131,6 +131,33 @@ class PublishReleaseTest(unittest.TestCase):
         publish_release.publish(client, REPOSITORY, "main", SHA, VERSION, BODY)
         self.assertEqual(client.responses, [])
 
+    def test_later_retry_creates_missing_release_for_exact_tag_after_main_advanced(self) -> None:
+        client = FakeClient(
+            [
+                ("GET", release_path(), (404, {})),
+                ("GET", tag_path(), (200, tag_ref())),
+                ("POST", f"/repos/{REPOSITORY}/releases", (201, release())),
+                ("GET", release_path(), (200, release())),
+                ("GET", tag_path(), (200, tag_ref())),
+            ]
+        )
+        publish_release.publish(client, REPOSITORY, "main", SHA, VERSION, BODY)
+        self.assertFalse(any(path == head_path() for _, path, _ in client.calls))
+        self.assertEqual(client.responses, [])
+
+    def test_later_retry_rejects_conflicting_release_for_exact_existing_tag(self) -> None:
+        client = FakeClient(
+            [
+                ("GET", release_path(), (404, {})),
+                ("GET", tag_path(), (200, tag_ref())),
+                ("POST", f"/repos/{REPOSITORY}/releases", publish_release.ApiError("conflict")),
+                ("GET", release_path(), (200, release(body="different"))),
+            ]
+        )
+        with self.assertRaises(publish_release.PublishError):
+            publish_release.publish(client, REPOSITORY, "main", SHA, VERSION, BODY)
+        self.assertFalse(any(path == head_path() for _, path, _ in client.calls))
+
     def test_stale_main_fails_immediately_before_create(self) -> None:
         client = FakeClient(
             [

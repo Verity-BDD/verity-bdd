@@ -239,7 +239,11 @@ def publish(
         raise PublishError("release tag already targets another commit")
 
     payload = _expected_release(version, library_sha, body)
-    _require_fresh_default_branch(client, repository, default_branch, library_sha)
+    # A matching tag proves an earlier publication attempt already created public
+    # state. Reconcile its missing Release deterministically even if main advanced.
+    # Freshness remains mandatory before creating the first tag/publication state.
+    if existing_tag is None:
+        _require_fresh_default_branch(client, repository, default_branch, library_sha)
     try:
         client.request("POST", f"/repos/{repository}/releases", payload)
     except ApiError:

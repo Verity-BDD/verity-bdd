@@ -41,6 +41,143 @@ def action_refs(job: str) -> list[str]:
     ]
 
 
+def direct_keys(text: str, indent: int) -> list[str]:
+    pattern = rf"^ {{{indent}}}([A-Za-z][A-Za-z0-9_-]*):"
+    return re.findall(pattern, text, re.MULTILINE)
+
+
+def step_blocks(job: str, indent: int) -> list[tuple[str, str]]:
+    lines = job.splitlines()
+    starts = [
+        (index, match.group(1))
+        for index, line in enumerate(lines)
+        if (match := re.fullmatch(rf" {{{indent}}}- name: (.+)", line))
+    ]
+    result = []
+    for position, (start, name) in enumerate(starts):
+        end = starts[position + 1][0] if position + 1 < len(starts) else len(lines)
+        result.append((name, "\n".join(lines[start:end])))
+    return result
+
+
+def exact_keys(text: str, indent: int, expected: set[str]) -> bool:
+    actual = direct_keys(text, indent)
+    return len(actual) == len(expected) and set(actual) == expected
+
+
+def block_or_empty(text: str, header: str, indent: int) -> str:
+    try:
+        return indented_block(text, header, indent)
+    except StopIteration:
+        return ""
+
+
+def exact_step_schema(
+    job: str, indent: int, expected: list[tuple[str, set[str]]]
+) -> bool:
+    actual = step_blocks(job, indent)
+    return [name for name, _ in actual] == [name for name, _ in expected] and all(
+        exact_keys(block, indent + 2, keys - {"name"})
+        for (_, block), (_, keys) in zip(actual, expected)
+    )
+
+
+def ci_contract_violations(workflow: str) -> list[str]:
+    """Guard reviewed CI structure against accidental/configuration drift.
+
+    This in-repository contract cannot defend against a malicious commit that edits
+    both workflow and tests; branch protection and independent review own that limit.
+    """
+    violations = []
+    try:
+        jobs = job_blocks(workflow)
+    except (KeyError, StopIteration):
+        return ["CI topology is malformed"]
+    if set(jobs) != {"test-verity", "test-examples", "lint"}:
+        violations.append("unexpected CI job topology")
+    if direct_keys(workflow, 0) != ["name", "on", "permissions", "jobs"]:
+        violations.append("unexpected CI workflow keys")
+    if block_or_empty(workflow, "permissions:", 0).strip() != "contents: read":
+        violations.append("CI permissions changed")
+    refs = re.findall(r"(?m)^\s+-?\s*uses:\s*([^\s#]+)", workflow)
+    expected_refs = [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
+        "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830",
+        "codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    ] * 2 + [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
+        "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830",
+        "golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    ]
+    if refs != expected_refs:
+        violations.append("CI actions differ from reviewed immutable pins")
+    if workflow.count("    runs-on: ubuntu-latest") != 3:
+        violations.append("CI jobs must use the reviewed runner")
+    if workflow.count('test "$(git rev-parse HEAD)" = "${{ github.sha }}"') != 3:
+        violations.append("CI checkout identity checks changed")
+    if re.search(r"(?:\|\||&&)\s*true\b|\btrue\s*\|\|", workflow):
+        violations.append("CI command failure is suppressed")
+
+    common = [
+        ("Checkout code", {"name", "uses", "with"}),
+        ("Verify checkout identity", {"name", "run"}),
+        ("Setup Go", {"name", "uses", "with"}),
+        ("Cache Go modules", {"name", "uses", "with"}),
+        ("Download dependencies", {"name", "run"}),
+    ]
+    schemas = {
+        "test-verity": common
+        + [
+            ("Run tests", {"name", "run"}),
+            ("Convert coverage to lcov", {"name", "run"}),
+            ("Upload coverage to Codecov", {"name", "uses", "with"}),
+            ("Upload coverage artifacts", {"name", "uses", "with"}),
+        ],
+        "test-examples": common
+        + [
+            ("Run tests", {"name", "run"}),
+            ("Convert coverage to lcov", {"name", "run"}),
+            ("Upload coverage to Codecov", {"name", "uses", "with"}),
+            ("Upload coverage artifacts", {"name", "uses", "with"}),
+        ],
+        "lint": common[:2]
+        + [
+            ("Test release workflow contracts", {"name", "run"}),
+            *common[2:],
+            ("Run golangci-lint", {"name", "uses", "with"}),
+            ("Upload lint results", {"name", "uses", "if", "with"}),
+        ],
+    }
+    for name, job in jobs.items():
+        allowed_job_keys = {"name", "runs-on", "steps"}
+        if name != "lint":
+            allowed_job_keys.add("strategy")
+        if not exact_keys(job, 4, allowed_job_keys):
+            violations.append(f"unexpected keys in CI job {name}")
+        if name != "lint":
+            strategy = block_or_empty(job, "strategy:", 4).strip()
+            if strategy != "matrix:\n        go-version: ['1.23.4', '1.24.x']":
+                violations.append(f"CI strategy changed in {name}")
+        if not exact_step_schema(job, 4, schemas.get(name, [])):
+            violations.append(f"unexpected steps or step keys in CI job {name}")
+        checkout = dict(step_blocks(job, 4)).get("Checkout code", "")
+        if block_or_empty(checkout, "with:", 6).strip() != "persist-credentials: false":
+            violations.append(f"checkout settings changed in CI job {name}")
+    if workflow.count("      if: always()") != 1:
+        violations.append("CI step condition changed")
+    policy_command = (
+        "      run: python3 -m unittest discover -s .github/scripts/release/tests "
+        "-p 'test_*.py' -v"
+    )
+    if workflow.count(policy_command) != 1:
+        violations.append("release policy command changed")
+    return violations
+
+
 def contract_violations(workflow: str) -> list[str]:
     violations = []
     try:
@@ -52,6 +189,96 @@ def contract_violations(workflow: str) -> list[str]:
         violations.append("unexpected job topology")
     build = jobs.get("build-release", "")
     publish = jobs.get("publish-release", "")
+    if direct_keys(workflow, 0) != [
+        "name",
+        "on",
+        "permissions",
+        "concurrency",
+        "jobs",
+    ]:
+        violations.append("unexpected workflow keys")
+    try:
+        concurrency = indented_block(workflow, "concurrency:", 0).strip()
+    except StopIteration:
+        concurrency = ""
+    if concurrency != "group: release-publication\n  cancel-in-progress: false":
+        violations.append("release concurrency contract changed")
+    if "permissions: {}\n\nconcurrency:" not in workflow:
+        violations.append("workflow permissions changed")
+    expected_permissions = {
+        "build-release": "actions: read\n      contents: read",
+        "publish-release": "contents: write",
+    }
+    for name, job in jobs.items():
+        try:
+            permissions = indented_block(job, "permissions:", 4).strip()
+        except StopIteration:
+            permissions = ""
+        if permissions != expected_permissions.get(name):
+            violations.append(f"permissions changed in release job {name}")
+    expected_job_keys = {
+        "build-release": {
+            "name", "if", "permissions", "runs-on", "timeout-minutes", "outputs", "steps"
+        },
+        "publish-release": {
+            "name", "needs", "if", "permissions", "runs-on", "timeout-minutes", "steps"
+        },
+    }
+    for name, job in jobs.items():
+        if not exact_keys(job, 4, expected_job_keys.get(name, set())):
+            violations.append(f"unexpected keys in release job {name}")
+    build_steps = [
+        ("Select exact candidate SHA", {"name", "id", "env", "run"}),
+        ("Checkout exact candidate", {"name", "uses", "with"}),
+        ("Verify checkout identity", {"name", "run"}),
+        ("Prove successful push CI provenance", {"name", "id", "env", "run"}),
+        ("Prepare deterministic release metadata", {"name", "id", "env", "run"}),
+    ]
+    publish_steps = [
+        ("Reconcile exact tag and GitHub Release", {"name", "env", "run"})
+    ]
+    if not exact_step_schema(build, 6, build_steps):
+        violations.append("build step topology changed")
+    if not exact_step_schema(publish, 6, publish_steps):
+        violations.append("publish step topology changed")
+    expected_gate = """      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_branch == github.event.repository.default_branch) ||
+      github.event_name == 'workflow_dispatch'"""
+    try:
+        gate = indented_block(build, "if: >-", 4)
+    except StopIteration:
+        gate = ""
+    if gate != expected_gate:
+        violations.append("release authorization expression changed")
+    if re.search(r"(?:\|\||&&)\s*true\b|\btrue\s*\|\|", workflow):
+        violations.append("release command failure is suppressed")
+    for match in re.finditer(r"(?m)^        run: \|\n(?P<body>(?:^ {10}.*\n?)*)", workflow):
+        first = next((line.strip() for line in match.group("body").splitlines() if line.strip()), "")
+        if first != "set -euo pipefail":
+            violations.append("multiline release command does not start with strict shell")
+    step_lookup = dict(step_blocks(build, 6)) | dict(step_blocks(publish, 6))
+    expected_env_keys = {
+        "Select exact candidate SHA": {"EVENT_NAME", "WORKFLOW_RUN_SHA", "MANUAL_SHA"},
+        "Prove successful push CI provenance": {
+            "ACTIONS_TOKEN", "API_URL", "DEFAULT_BRANCH", "EVENT_NAME", "EVENT_PATH",
+            "LIBRARY_SHA", "REPOSITORY",
+        },
+        "Prepare deterministic release metadata": {"LIBRARY_SHA"},
+        "Reconcile exact tag and GitHub Release": {
+            "API_URL", "DEFAULT_BRANCH", "LIBRARY_SHA", "PUBLISH_SCRIPT_SHA256",
+            "RELEASE_BODY_B64", "RELEASE_TOKEN", "REPOSITORY", "VERSION",
+        },
+    }
+    for name, expected in expected_env_keys.items():
+        try:
+            env = indented_block(step_lookup.get(name, ""), "env:", 8)
+        except StopIteration:
+            env = ""
+        if not exact_keys(env, 10, expected):
+            violations.append(f"release environment changed in {name}")
     for required in (
         "branches: [main]",
         'workflows: ["CI"]',
@@ -218,6 +445,34 @@ class ReleaseWorkflowTopologyTest(unittest.TestCase):
                 "        run: python3 .github/scripts/release/prepare_release.py",
                 "        run: python3 -c \"print('fake')\"",
             ),
+            "authorize everything before reviewed expression": (
+                "      (github.event_name == 'workflow_run' &&",
+                "      true || (github.event_name == 'workflow_run' &&",
+            ),
+            "suppress publish failure": (
+                '              --version "$VERSION"',
+                '              --version "$VERSION" || true',
+            ),
+            "add actions write permission": (
+                "    permissions:\n      contents: write\n",
+                "    permissions:\n      actions: write\n      contents: write\n",
+            ),
+            "inject BASH_ENV": (
+                "          API_URL: ${{ github.api_url }}\n",
+                "          API_URL: ${{ github.api_url }}\n          BASH_ENV: /tmp/attacker\n",
+            ),
+            "run before strict shell": (
+                "        run: |\n          set -euo pipefail\n",
+                "        run: |\n          attacker-command\n          set -euo pipefail\n",
+            ),
+            "remove concurrency": (
+                "concurrency:\n  group: release-publication\n  cancel-in-progress: false\n\n",
+                "",
+            ),
+            "cancel an in-progress publication": (
+                "  cancel-in-progress: false",
+                "  cancel-in-progress: true",
+            ),
         }
         for name, (old, new) in mutations.items():
             with self.subTest(name=name):
@@ -232,6 +487,44 @@ class ReleaseWorkflowTopologyTest(unittest.TestCase):
             "python3 -m unittest discover -s .github/scripts/release/tests -p 'test_*.py' -v",
             ci,
         )
+
+    def test_ci_actions_are_immutable_and_policy_checkout_is_exact(self) -> None:
+        ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+        refs = re.findall(r"(?m)^\s+-?\s*uses:\s*([^\s#]+)", ci)
+        self.assertTrue(refs)
+        self.assertTrue(
+            all(re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", ref) for ref in refs), refs
+        )
+        self.assertEqual(
+            ci.count('test "$(git rev-parse HEAD)" = "${{ github.sha }}"'), 3
+        )
+
+    def test_ci_policy_wiring_propagates_failure_and_rejects_execution_injection(self) -> None:
+        ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+        self.assertEqual(ci_contract_violations(ci), [])
+        mutations = {
+            "mutable CI action": (
+                "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+                "actions/checkout@v4",
+            ),
+            "skip lint policy job": ("  lint:\n", "  lint:\n    if: false\n"),
+            "expand CI permissions": (
+                "permissions:\n  contents: read",
+                "permissions:\n  actions: write\n  contents: read",
+            ),
+            "suppress policy command failure": (
+                "      run: python3 -m unittest discover -s .github/scripts/release/tests -p 'test_*.py' -v",
+                "      run: python3 -m unittest discover -s .github/scripts/release/tests -p 'test_*.py' -v || true",
+            ),
+            "inject policy BASH_ENV": (
+                "    steps:\n    - name: Checkout code\n",
+                "    env:\n      BASH_ENV: /tmp/attacker\n    steps:\n    - name: Checkout code\n",
+            ),
+        }
+        for name, (old, new) in mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(old, ci)
+                self.assertNotEqual(ci_contract_violations(ci.replace(old, new, 1)), [])
 
 
 if __name__ == "__main__":
