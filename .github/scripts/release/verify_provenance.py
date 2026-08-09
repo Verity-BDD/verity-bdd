@@ -17,6 +17,7 @@ from typing import Any
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 WORKFLOW_NAME = "CI"
 WORKFLOW_PATH = ".github/workflows/ci.yml"
+MAX_RESPONSE_BYTES = 1_048_576
 
 
 class ProvenanceError(RuntimeError):
@@ -28,13 +29,15 @@ def _positive_int(value: Any) -> bool:
 
 
 def _repo_name(value: Any) -> str | None:
-    return value.get("full_name") if isinstance(value, dict) else None
+    if type(value) is not dict or type(value.get("full_name")) is not str:
+        return None
+    return value["full_name"]
 
 
 def _validate_run(
     run: Any, repository: str, default_branch: str, library_sha: str
 ) -> str:
-    if not isinstance(run, dict):
+    if type(run) is not dict:
         raise ProvenanceError("workflow run must be an object")
     expected = {
         "name": WORKFLOW_NAME,
@@ -70,7 +73,7 @@ def validate_workflow_run_event(
     event: Any, repository: str, default_branch: str, library_sha: str
 ) -> str:
     _validate_inputs(repository, default_branch, library_sha)
-    if not isinstance(event, dict):
+    if type(event) is not dict:
         raise ProvenanceError("event payload must be an object")
     return _validate_run(event.get("workflow_run"), repository, default_branch, library_sha)
 
@@ -79,30 +82,65 @@ def validate_manual_runs(
     payload: Any, repository: str, default_branch: str, library_sha: str
 ) -> str:
     _validate_inputs(repository, default_branch, library_sha)
-    if not isinstance(payload, dict):
+    if type(payload) is not dict:
         raise ProvenanceError("Actions response must be an object")
     runs = payload.get("workflow_runs")
     count = payload.get("total_count")
     if type(count) is not int or count != 1:
         raise ProvenanceError("manual release requires exactly one matching CI run")
-    if not isinstance(runs, list) or len(runs) != 1:
+    if type(runs) is not list or len(runs) != 1:
         raise ProvenanceError("manual release CI run list is malformed or ambiguous")
     return _validate_run(runs[0], repository, default_branch, library_sha)
 
 
 def _api_origin(api_url: str) -> str:
-    parsed = urllib.parse.urlsplit(api_url)
+    try:
+        parsed = urllib.parse.urlsplit(api_url)
+        valid_port = parsed.port in (None, 443)
+    except ValueError as error:
+        raise ProvenanceError("invalid GitHub API URL") from error
     if (
         parsed.scheme != "https"
-        or not parsed.hostname
+        or parsed.hostname != "api.github.com"
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.port not in (None, 443)
+        or not valid_port
+        or parsed.path not in ("", "/")
         or parsed.query
         or parsed.fragment
     ):
         raise ProvenanceError("invalid GitHub API URL")
-    return api_url.rstrip("/")
+    return "https://api.github.com"
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        return None
+
+
+def _read_json_response(response: Any) -> dict[str, Any]:
+    if type(response.status) is not int or response.status != 200:
+        raise ProvenanceError("Actions API did not return HTTP 200")
+    content_length = response.headers.get("Content-Length")
+    declared_length = None
+    if content_length is not None:
+        if type(content_length) is not str or not content_length.isdecimal():
+            raise ProvenanceError("Actions API Content-Length is malformed")
+        declared_length = int(content_length)
+        if declared_length > MAX_RESPONSE_BYTES:
+            raise ProvenanceError("Actions API response exceeded size limit")
+    raw = response.read(MAX_RESPONSE_BYTES + 1)
+    if type(raw) is not bytes or len(raw) > MAX_RESPONSE_BYTES:
+        raise ProvenanceError("Actions API response exceeded size limit")
+    if declared_length is not None and len(raw) != declared_length:
+        raise ProvenanceError("Actions API Content-Length did not match response body")
+    try:
+        decoded = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ProvenanceError("Actions API returned malformed JSON") from error
+    if type(decoded) is not dict:
+        raise ProvenanceError("Actions API response must be an object")
+    return decoded
 
 
 def fetch_manual_runs(
@@ -134,12 +172,13 @@ def fetch_manual_runs(
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )
+    opener = urllib.request.build_opener(_NoRedirect)
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            if response.status != 200:
-                raise ProvenanceError(f"Actions API returned HTTP {response.status}")
-            return json.load(response)
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+        with opener.open(request, timeout=20) as response:
+            return _read_json_response(response)
+    except urllib.error.HTTPError as error:
+        raise ProvenanceError(f"Actions API returned HTTP {error.code}") from error
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
         raise ProvenanceError("unable to read successful CI provenance") from error
 
 

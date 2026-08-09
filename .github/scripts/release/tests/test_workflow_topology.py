@@ -65,6 +65,29 @@ def exact_keys(text: str, indent: int, expected: set[str]) -> bool:
     return len(actual) == len(expected) and set(actual) == expected
 
 
+def direct_field_value(text: str, indent: int, key: str) -> str | None:
+    """Read one reviewed scalar or literal-block field from a bounded step block."""
+    lines = text.splitlines()
+    matches = [
+        (index, match.group(1))
+        for index, line in enumerate(lines)
+        if (match := re.fullmatch(rf" {{{indent}}}{re.escape(key)}:(?: (.*))?", line))
+    ]
+    if len(matches) != 1:
+        return None
+    index, value = matches[0]
+    if value != "|":
+        return value
+    body = []
+    for line in lines[index + 1 :]:
+        if line.strip() and len(line) - len(line.lstrip()) <= indent:
+            break
+        if line.strip() and not line.startswith(" " * (indent + 2)):
+            return None
+        body.append(line[indent + 2 :] if line else "")
+    return "\n".join(body).rstrip()
+
+
 def block_or_empty(text: str, header: str, indent: int) -> str:
     try:
         return indented_block(text, header, indent)
@@ -152,6 +175,34 @@ def ci_contract_violations(workflow: str) -> list[str]:
             ("Upload lint results", {"name", "uses", "if", "with"}),
         ],
     }
+    expected_runs = {
+        "test-verity": {
+            "Verify checkout identity": 'test "$(git rev-parse HEAD)" = "${{ github.sha }}"',
+            "Download dependencies": "go mod download",
+            "Run tests": "go test ./... -v -race -coverprofile=verity-coverage.out",
+            "Convert coverage to lcov": (
+                "go install github.com/jandelgado/gcov2lcov@latest\n"
+                "gcov2lcov -infile verity-coverage.out -outfile verity-coverage.lcov"
+            ),
+        },
+        "test-examples": {
+            "Verify checkout identity": 'test "$(git rev-parse HEAD)" = "${{ github.sha }}"',
+            "Download dependencies": "go mod download",
+            "Run tests": "go test ./examples/... -v -race -coverprofile=examples-coverage.out",
+            "Convert coverage to lcov": (
+                "go install github.com/jandelgado/gcov2lcov@latest\n"
+                "gcov2lcov -infile examples-coverage.out -outfile examples-coverage.lcov"
+            ),
+        },
+        "lint": {
+            "Verify checkout identity": 'test "$(git rev-parse HEAD)" = "${{ github.sha }}"',
+            "Test release workflow contracts": (
+                "python3 -m unittest discover -s .github/scripts/release/tests "
+                "-p 'test_*.py' -v"
+            ),
+            "Download dependencies": "go mod download",
+        },
+    }
     for name, job in jobs.items():
         allowed_job_keys = {"name", "runs-on", "steps"}
         if name != "lint":
@@ -164,6 +215,10 @@ def ci_contract_violations(workflow: str) -> list[str]:
                 violations.append(f"CI strategy changed in {name}")
         if not exact_step_schema(job, 4, schemas.get(name, [])):
             violations.append(f"unexpected steps or step keys in CI job {name}")
+        steps = dict(step_blocks(job, 4))
+        for step_name, expected_run in expected_runs.get(name, {}).items():
+            if direct_field_value(steps.get(step_name, ""), 6, "run") != expected_run:
+                violations.append(f"CI command changed in {name}: {step_name}")
         checkout = dict(step_blocks(job, 4)).get("Checkout code", "")
         if block_or_empty(checkout, "with:", 6).strip() != "persist-credentials: false":
             violations.append(f"checkout settings changed in CI job {name}")
@@ -260,6 +315,60 @@ def contract_violations(workflow: str) -> list[str]:
         if first != "set -euo pipefail":
             violations.append("multiline release command does not start with strict shell")
     step_lookup = dict(step_blocks(build, 6)) | dict(step_blocks(publish, 6))
+    expected_runs = {
+        "Select exact candidate SHA": '''set -euo pipefail
+if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+  library_sha="$WORKFLOW_RUN_SHA"
+elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+  library_sha="$MANUAL_SHA"
+else
+  echo "unsupported release event: $EVENT_NAME" >&2
+  exit 1
+fi
+[[ "$library_sha" =~ ^[0-9a-f]{40}$ ]] || {
+  echo "release SHA must be exactly 40 lowercase hexadecimal characters" >&2
+  exit 1
+}
+echo "library_sha=$library_sha" >> "$GITHUB_OUTPUT"''',
+        "Verify checkout identity": '''set -euo pipefail
+test "$(git rev-parse HEAD)" = "${{ steps.source.outputs.library_sha }}"
+test -z "$(git status --porcelain)"''',
+        "Prove successful push CI provenance": (
+            "python3 .github/scripts/release/verify_provenance.py"
+        ),
+        "Prepare deterministic release metadata": (
+            "python3 .github/scripts/release/prepare_release.py"
+        ),
+        "Reconcile exact tag and GitHub Release": r'''set -euo pipefail
+umask 077
+temp_dir=$(mktemp -d)
+trap 'rm -rf "$temp_dir"' EXIT
+
+printf '%s' "$RELEASE_TOKEN" > "$temp_dir/token"
+unset RELEASE_TOKEN
+
+script_url="https://raw.githubusercontent.com/${REPOSITORY}/${LIBRARY_SHA}/.github/scripts/release/publish_release.py"
+env -i HOME="$temp_dir" PATH=/usr/bin:/bin \
+  /usr/bin/curl -q --fail --silent --show-error \
+  --proto '=https' --tlsv1.2 --max-redirs 0 \
+  --output "$temp_dir/publish_release.py" "$script_url"
+printf '%s  %s\n' "$PUBLISH_SCRIPT_SHA256" "$temp_dir/publish_release.py" \
+  > "$temp_dir/publish_release.py.sha256"
+sha256sum --check "$temp_dir/publish_release.py.sha256"
+
+env -i HOME="$temp_dir" PATH=/usr/bin:/bin \
+  python3 "$temp_dir/publish_release.py" \
+    --api-url "$API_URL" \
+    --default-branch "$DEFAULT_BRANCH" \
+    --library-sha "$LIBRARY_SHA" \
+    --release-body-b64 "$RELEASE_BODY_B64" \
+    --repository "$REPOSITORY" \
+    --token-file "$temp_dir/token" \
+    --version "$VERSION"''',
+    }
+    for name, expected_run in expected_runs.items():
+        if direct_field_value(step_lookup.get(name, ""), 8, "run") != expected_run:
+            violations.append(f"release command changed in {name}")
     expected_env_keys = {
         "Select exact candidate SHA": {"EVENT_NAME", "WORKFLOW_RUN_SHA", "MANUAL_SHA"},
         "Prove successful push CI provenance": {
@@ -481,6 +590,31 @@ class ReleaseWorkflowTopologyTest(unittest.TestCase):
                 self.assertNotEqual(mutated, self.workflow)
                 self.assertNotEqual(contract_violations(mutated), [])
 
+    def test_contract_checker_rejects_inert_release_checkout_identity(self) -> None:
+        old = """        run: |
+          set -euo pipefail
+          test \"$(git rev-parse HEAD)\" = \"${{ steps.source.outputs.library_sha }}\"
+          test -z \"$(git status --porcelain)\""""
+        new = """        # test \"$(git rev-parse HEAD)\" = \"${{ steps.source.outputs.library_sha }}\"
+        run: true"""
+        self.assertIn(old, self.workflow)
+        mutated = self.workflow.replace(old, new, 1)
+        self.assertNotEqual(mutated, self.workflow)
+        self.assertNotEqual(contract_violations(mutated), [])
+
+    def test_contract_checker_rejects_duplicate_or_suppressed_release_run(self) -> None:
+        old = "        run: python3 .github/scripts/release/verify_provenance.py"
+        mutations = (
+            old + "\n        run: true",
+            "        # " + old.strip() + "\n        run: true",
+        )
+        self.assertIn(old, self.workflow)
+        for replacement in mutations:
+            with self.subTest(replacement=replacement):
+                mutated = self.workflow.replace(old, replacement, 1)
+                self.assertNotEqual(mutated, self.workflow)
+                self.assertNotEqual(contract_violations(mutated), [])
+
     def test_ci_executes_the_release_contract_suite(self) -> None:
         ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
         self.assertIn(
@@ -525,6 +659,37 @@ class ReleaseWorkflowTopologyTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIn(old, ci)
                 self.assertNotEqual(ci_contract_violations(ci.replace(old, new, 1)), [])
+
+    def test_ci_contract_rejects_disabled_go_tests_and_inert_identity_text(self) -> None:
+        ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+        mutations = {
+            "disabled package tests": (
+                "      run: go test ./... -v -race -coverprofile=verity-coverage.out",
+                "      run: true",
+            ),
+            "disabled example tests": (
+                "      run: go test ./examples/... -v -race -coverprofile=examples-coverage.out",
+                "      run: true",
+            ),
+            "inert checkout identity": (
+                '      run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"',
+                '      # test "$(git rev-parse HEAD)" = "${{ github.sha }}"\n      run: true',
+            ),
+        }
+        for name, (old, new) in mutations.items():
+            with self.subTest(name=name):
+                self.assertIn(old, ci)
+                mutated = ci.replace(old, new, 1)
+                self.assertNotEqual(mutated, ci)
+                self.assertNotEqual(ci_contract_violations(mutated), [])
+
+    def test_ci_contract_rejects_duplicate_required_run_key(self) -> None:
+        ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+        old = "      run: go test ./... -v -race -coverprofile=verity-coverage.out"
+        self.assertIn(old, ci)
+        mutated = ci.replace(old, old + "\n      run: true", 1)
+        self.assertNotEqual(mutated, ci)
+        self.assertNotEqual(ci_contract_violations(mutated), [])
 
 
 if __name__ == "__main__":
