@@ -64,8 +64,8 @@ type RequestBuilder struct {
 	body    io.Reader
 }
 
-// NewRequestBuilder creates a new request builder
-func NewRequestBuilder(method, url string) *RequestBuilder {
+// RequestFor returns a request builder for the given HTTP method and URL.
+func RequestFor(method, url string) *RequestBuilder {
 	return &RequestBuilder{
 		method:  method,
 		url:     url,

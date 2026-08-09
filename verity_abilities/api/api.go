@@ -45,9 +45,9 @@ func CallAnApiAt(baseURL string) CallAnAPI {
 	return internalapi.CallAnApiAt(baseURL)
 }
 
-// NewRequestBuilder creates a new request builder for the given HTTP method and URL.
-func NewRequestBuilder(method, url string) *RequestBuilder {
-	return internalapi.NewRequestBuilder(method, url)
+// RequestFor returns a request builder for the given HTTP method and URL.
+func RequestFor(method, url string) *RequestBuilder {
+	return internalapi.RequestFor(method, url)
 }
 
 // SendRequest creates an activity that sends the given HTTP request.
@@ -80,16 +80,16 @@ func SendPatchRequest(url string) *RequestActivity {
 	return internalapi.SendPatchRequest(url)
 }
 
-// NewResponseHeader creates a new question that retrieves the named header from the last HTTP response.
-func NewResponseHeader(key string) ResponseHeader {
-	return internalapi.NewResponseHeader(key)
+// LastResponseHeader returns a question that retrieves the named header from the last HTTP response.
+func LastResponseHeader(key string) ResponseHeader {
+	return internalapi.LastResponseHeader(key)
 }
 
-// NewJSONPath creates an untyped question for a dot-separated JSON path.
+// LastResponseBodyAtJSONPath returns an untyped question for a dot-separated path in the last response body.
 // Numeric path segments index arrays and "*" maps the remaining path across
 // array elements, omitting elements for which that remaining path errors.
-func NewJSONPath(path string) JSONPath {
-	return internalapi.NewJSONPath(path)
+func LastResponseBodyAtJSONPath(path string) JSONPath {
+	return internalapi.LastResponseBodyAtJSONPath(path)
 }
 
 // LastResponseBodyAsJSON creates a question that parses the last HTTP response body as JSON into type T.

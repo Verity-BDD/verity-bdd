@@ -147,18 +147,18 @@ actor.AttemptsTo(
 )
 ```
 
-For a pre-built `*http.Request`, use `api.SendRequest(req)`. `api.NewRequestBuilder` is also available when request construction needs to be separated from execution.
+For a pre-built `*http.Request`, use `api.SendRequest(req)`. `api.RequestFor(method, url)` is also available when request construction needs to be separated from execution.
 
 Current response questions include:
 
 - `api.LastResponseStatus{}` and `api.LastResponseStatusQ` (`int`)
 - `api.LastResponseBody{}` and `api.LastResponseBodyQ` (`string`)
-- `api.NewResponseHeader(name)` (`string`)
+- `api.LastResponseHeader(name)` (`string`)
 - `api.LastResponseBodyAsJSON[T]()` (`T`)
-- `api.NewJSONPath(path)` (`any`)
+- `api.LastResponseBodyAtJSONPath(path)` (`any`)
 - `api.ResponseTime{}` and `api.ResponseTimeQ` (`int64`, currently always `0`)
 
-`NewJSONPath` decodes JSON into ordinary Go JSON values: objects become `map[string]any`, arrays become `[]any`, numbers become `float64`, and wildcard paths can return `[]any`. Because its question type is `any`, use an `ensure.Expectation[any]` such as `expectations.Equals[any](...)` or create a typed question with `LastResponseBodyAsJSON[T]`.
+`LastResponseBodyAtJSONPath` decodes JSON into ordinary Go JSON values: objects become `map[string]any`, arrays become `[]any`, numbers become `float64`, and wildcard paths can return `[]any`. Because its question type is `any`, use an `ensure.Expectation[any]` such as `expectations.Equals[any](...)` or create a typed question with `LastResponseBodyAsJSON[T]`.
 
 Response timing is not implemented. `ResponseTime` and `ResponseTimeQ` currently return `0`; do not use them to assert measured latency.
 
