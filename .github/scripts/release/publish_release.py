@@ -47,16 +47,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 class GitHubClient:
     def __init__(self, api_url: str, token: str) -> None:
-        parsed = urllib.parse.urlsplit(api_url)
-        if (
-            parsed.scheme != "https"
-            or not parsed.hostname
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.port not in (None, 443)
-            or parsed.query
-            or parsed.fragment
-        ):
+        if api_url != "https://api.github.com":
             raise PublishError("invalid GitHub API URL")
         if not token or "\n" in token or "\r" in token:
             raise PublishError("invalid release token")

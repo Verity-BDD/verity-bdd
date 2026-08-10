@@ -315,6 +315,15 @@ def contract_violations(workflow: str) -> list[str]:
         if first != "set -euo pipefail":
             violations.append("multiline release command does not start with strict shell")
     step_lookup = dict(step_blocks(build, 6)) | dict(step_blocks(publish, 6))
+    checkout_with = block_or_empty(
+        step_lookup.get("Checkout exact candidate", ""), "with:", 8
+    ).strip()
+    expected_checkout_with = """ref: ${{ steps.source.outputs.library_sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false"""
+    if checkout_with != expected_checkout_with:
+        violations.append("checkout settings changed in release build")
     expected_runs = {
         "Select exact candidate SHA": '''set -euo pipefail
 if [[ "$EVENT_NAME" == "workflow_run" ]]; then
@@ -388,6 +397,13 @@ env -i HOME="$temp_dir" PATH=/usr/bin:/bin \
             env = ""
         if not exact_keys(env, 10, expected):
             violations.append(f"release environment changed in {name}")
+    for name in (
+        "Prove successful push CI provenance",
+        "Reconcile exact tag and GitHub Release",
+    ):
+        api_url = direct_field_value(step_lookup.get(name, ""), 10, "API_URL")
+        if api_url != "${{ github.api_url }}":
+            violations.append(f"release API URL changed in {name}")
     for required in (
         "branches: [main]",
         'workflows: ["CI"]',
@@ -589,6 +605,29 @@ class ReleaseWorkflowTopologyTest(unittest.TestCase):
                 mutated = self.workflow.replace(old, new, 1)
                 self.assertNotEqual(mutated, self.workflow)
                 self.assertNotEqual(contract_violations(mutated), [])
+
+    def test_contract_checker_rejects_publish_api_url_redirection(self) -> None:
+        publish = self.jobs["publish-release"]
+        old = "          API_URL: ${{ github.api_url }}"
+        self.assertIn(old, publish)
+        mutated_publish = publish.replace(
+            old, "          API_URL: https://attacker.example", 1
+        )
+        self.assertNotEqual(mutated_publish, publish)
+        mutated = self.workflow.replace(publish, mutated_publish, 1)
+        self.assertNotEqual(contract_violations(mutated), [])
+
+    def test_contract_checker_rejects_checkout_destination_override(self) -> None:
+        old = "          persist-credentials: false"
+        build = self.jobs["build-release"]
+        checkout = dict(step_blocks(build, 6))["Checkout exact candidate"]
+        self.assertIn(old, checkout)
+        mutated_checkout = checkout.replace(
+            old, old + "\n          github-server-url: https://attacker.example", 1
+        )
+        self.assertNotEqual(mutated_checkout, checkout)
+        mutated = self.workflow.replace(checkout, mutated_checkout, 1)
+        self.assertNotEqual(contract_violations(mutated), [])
 
     def test_contract_checker_rejects_inert_release_checkout_identity(self) -> None:
         old = """        run: |

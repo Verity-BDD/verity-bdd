@@ -70,6 +70,10 @@ def head_path() -> str:
 
 
 class PublishReleaseTest(unittest.TestCase):
+    def test_github_client_rejects_noncanonical_https_host(self) -> None:
+        with self.assertRaises(publish_release.PublishError):
+            publish_release.GitHubClient("https://attacker.example", "secret")
+
     def test_exact_existing_release_and_tag_are_idempotent_success(self) -> None:
         client = FakeClient(
             [
