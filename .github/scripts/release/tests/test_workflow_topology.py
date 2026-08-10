@@ -104,12 +104,15 @@ class ReleaseWorkflowSecurityTest(unittest.TestCase):
             publish.count('env -i HOME="$temp_dir" PATH=/usr/bin:/bin'),
             2,
         )
+        self.assertRegex(
+            publish,
+            r'(?m)^          sha256sum --check "\$temp_dir/publish_release\.py\.sha256"$',
+        )
         for requirement in (
             "LIBRARY_SHA: ${{ needs.build-release.outputs.library_sha }}",
             "PUBLISH_SCRIPT_SHA256: ${{ needs.build-release.outputs.publish_script_sha256 }}",
             'script_url="https://raw.githubusercontent.com/${REPOSITORY}/${LIBRARY_SHA}/',
             "--proto '=https' --tlsv1.2 --max-redirs 0",
-            'sha256sum --check "$temp_dir/publish_release.py.sha256"',
             'printf \'%s\' "$RELEASE_TOKEN" > "$temp_dir/token"',
             "unset RELEASE_TOKEN",
             '--library-sha "$LIBRARY_SHA"',
