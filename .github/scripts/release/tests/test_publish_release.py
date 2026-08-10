@@ -31,6 +31,16 @@ def release(**changes: object) -> dict:
     return value
 
 
+def release_for(version: str, **changes: object) -> dict:
+    value = release(
+        tag_name=version,
+        name=f"Release {version}",
+        prerelease="-" in version,
+    )
+    value.update(changes)
+    return value
+
+
 def tag_ref(sha: str = SHA, object_type: str = "commit") -> dict:
     return {
         "ref": f"refs/tags/{VERSION}",
@@ -57,12 +67,12 @@ class FakeClient:
         return response
 
 
-def release_path() -> str:
-    return f"/repos/{REPOSITORY}/releases/tags/{VERSION}"
+def release_path(version: str = VERSION) -> str:
+    return f"/repos/{REPOSITORY}/releases/tags/{version}"
 
 
-def tag_path() -> str:
-    return f"/repos/{REPOSITORY}/git/ref/tags/{VERSION}"
+def tag_path(version: str = VERSION) -> str:
+    return f"/repos/{REPOSITORY}/git/ref/tags/{version}"
 
 
 def head_path() -> str:
@@ -73,6 +83,46 @@ class PublishReleaseTest(unittest.TestCase):
     def test_github_client_rejects_noncanonical_https_host(self) -> None:
         with self.assertRaises(publish_release.PublishError):
             publish_release.GitHubClient("https://attacker.example", "secret")
+
+    def test_creates_and_reconciles_prerelease_with_derived_flag(self) -> None:
+        version = "v1.3.0-rc.1"
+        expected = release_for(version)
+        prerelease_ref = {
+            "ref": f"refs/tags/{version}",
+            "object": {"type": "commit", "sha": SHA},
+        }
+        client = FakeClient(
+            [
+                ("GET", release_path(version), (404, {})),
+                ("GET", tag_path(version), (404, {})),
+                ("GET", head_path(), (200, {"object": {"type": "commit", "sha": SHA}})),
+                ("POST", f"/repos/{REPOSITORY}/releases", (201, expected)),
+                ("GET", release_path(version), (200, expected)),
+                ("GET", tag_path(version), (200, prerelease_ref)),
+            ]
+        )
+
+        publish_release.publish(client, REPOSITORY, "main", SHA, version, BODY)
+
+        post = next(payload for method, _, payload in client.calls if method == "POST")
+        self.assertIsInstance(post, dict)
+        assert isinstance(post, dict)
+        self.assertEqual(post["prerelease"], True)
+
+    def test_rejects_existing_prerelease_with_conflicting_flag(self) -> None:
+        version = "v1.3.0-rc.1"
+        client = FakeClient(
+            [
+                (
+                    "GET",
+                    release_path(version),
+                    (200, release_for(version, prerelease=False)),
+                )
+            ]
+        )
+
+        with self.assertRaisesRegex(publish_release.PublishError, "prerelease flag"):
+            publish_release.publish(client, REPOSITORY, "main", SHA, version, BODY)
 
     def test_exact_existing_release_and_tag_are_idempotent_success(self) -> None:
         client = FakeClient(

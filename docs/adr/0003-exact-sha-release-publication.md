@@ -1,45 +1,52 @@
-# ADR 0003: Exact-SHA release publication
+# ADR 0003: Manual SemVer release publication
 
 - Status: Accepted
 - Date: 2026-08-10
 
 ## Context
 
-A release must publish exactly the commit that passed the repository's push CI. Using the current default branch, a floating ref, or an unverified manually supplied SHA at publication time can release code that was not tested. A write-capable job that also checks out source, runs third-party actions, builds artifacts, or retains checkout credentials gives more code than necessary access to the release token.
+A release must publish an operator-chosen version of exactly the commit that passed push CI. Automatically releasing every `main` push removes the deliberate version decision, while deriving versions from commit messages or existing tags makes mutable repository conventions the source of release intent. Allowing a user-supplied or historical SHA can publish code other than the current reviewed branch head.
 
-Release attempts can also stop after creating a tag but before creating or observing the corresponding GitHub Release. Retrying such a partial publication must reconcile the same intended state rather than select a new version, move a tag, or fail merely because the expected tag already exists.
+Published history can also become inconsistent when a run creates a tag but stops before the corresponding GitHub Release. Retries must complete the exact intended publication without moving tags or interpreting partial state as a new version. Prerelease promotion adds a legitimate case in which one tested commit is published first as a release candidate and later promoted without a source change.
 
-Workflow tests can catch accidental configuration drift, but they are stored beside the workflow and can be changed by the same commit. They are not a security boundary against a malicious contributor. Branch protection and independent review own that boundary.
+The release credential must remain unavailable to checked-out repository code and read-time validation. Workflow tests can catch accidental contract drift, but because the workflow and tests can change together, branch protection and independent review—not in-repository tests—are the boundary against malicious changes.
 
 ## Decision
 
-Automatic releases accept only a completed, successful `push` run of the repository's `CI` workflow on the default branch. Manual releases require one explicit lowercase 40-hex commit SHA and independently prove that exactly one matching successful push-CI run exists for that workflow, repository, event, branch, and SHA.
+Releases are initiated only with `workflow_dispatch`. The operator must provide `version`; there is no push-triggered release and no SHA input. The workflow candidate is the dispatch commit, and it is eligible only when it is the current `main` HEAD and has exactly one completed, successful `push` run of the repository's `CI` workflow for that repository, branch, and SHA. The publisher rechecks that `main` still points to the candidate before creating the first public state, so an ordinary run fails if `main` advances during preparation.
 
-Split release execution into two jobs:
+The version input is the sole version intent. It must be canonical SemVer with a mandatory `v` prefix, may contain a SemVer prerelease, and may not contain build metadata. Numeric identifiers cannot contain forbidden leading zeroes. All releases share one globally increasing SemVer sequence; there are no parallel release lines. Commit messages never select or increment a version. Commits since the latest published release only produce deterministic release notes.
 
-1. `build-release` has only `actions: read` and `contents: read`. It selects and validates the candidate SHA, checks out that exact commit with persisted credentials disabled, verifies the checkout identity, proves CI provenance, and prepares deterministic release metadata.
-2. `publish-release` depends on the build outputs and has only `contents: write`. It contains one action-free step and does not check out or build repository code. It downloads the publication script from the selected SHA over HTTPS without redirects, verifies its prepared SHA-256 checksum, and executes it with an isolated environment and a token file confined to a private temporary directory.
+Published history is defined by non-draft GitHub Releases, including prereleases, and their matching tags. Draft releases are ignored. Publication chronology comes from valid, unique `published_at` timestamps rather than GitHub API list order, and versions must increase strictly in that chronology. Every published SemVer Release must have a matching tag, and every SemVer tag—including one with otherwise valid build metadata—must have a matching published Release. An orphan tag fails closed except when it is the one exactly requested version, resolves to the candidate SHA, and therefore represents the partial publication being retried. Duplicate, malformed, non-increasing, or conflicting history also fails.
 
-Publication is serialized and non-forceful. The publisher creates or reconciles the exact semantic-version tag and final GitHub Release for the selected SHA. Existing tags and releases are accepted only when their target and metadata match the deterministic expected state; ambiguous or conflicting state fails closed. Retries reconstruct the same release metadata and complete a valid partial publication.
+Publishing the same SHA again is allowed only when the highest published release points to that SHA and is a prerelease, and the requested version is a higher prerelease or the final version of the same core `major.minor.patch`. Once that SHA has a final release, another version requires a different commit. The GitHub Release `prerelease` flag is derived from the validated version rather than entered separately.
 
-All GitHub Actions use immutable commit references, checkout credentials are not persisted, and executable Go tools installed by CI use reviewed versions rather than `@latest`. The obsolete cross-repository documentation dispatch workflow is removed so release publication has no unrelated external write capability.
+Execution remains split across two security boundaries:
 
-Workflow contract tests remain focused on accidental drift of the security invariants above: provenance gating, exact-SHA propagation, permissions, immutable actions, the single action-free write step, checksum failure propagation, credential isolation, and absence of floating publication targets. They do not freeze harmless workflow formatting, ordinary step order, coverage commands, artifact handling, or the full YAML key schema.
+1. `build-release` has only `actions: read` and `contents: read`. It checks out the exact candidate with persisted credentials disabled, proves provenance, reads published history, validates version policy, creates deterministic notes, and computes the publisher checksum.
+2. `publish-release` has only `contents: write`, performs no checkout or build, and has one action-free step. It downloads the publisher from the candidate SHA without redirects, verifies the prepared SHA-256 checksum, and runs it in a minimal isolated environment with the token stored in a private temporary file.
+
+The publisher reconciles the exact requested tag and non-draft GitHub Release deterministically and without force updates. Exact existing state is idempotent success. A matching requested tag without its Release is completed as a partial retry, including after `main` has advanced; any mismatch in SHA, name, notes, draft state, or derived prerelease state fails closed. Publication is serialized.
+
+Focused contract tests protect the chosen invariants against accidental drift: manual-only initiation, current-`main` and push-CI provenance, exact-SHA propagation, permissions, immutable actions, the minimal write step, deterministic reconciliation, checksum enforcement, and credential isolation. They are intentionally not a generic validator for the complete GitHub Actions YAML schema.
 
 ## Rejected alternatives
 
-- **Publish from `main` or another floating ref.** Rejected because the ref can advance after CI and no longer identify the tested commit.
-- **Trust any manually supplied SHA.** Rejected because syntactic SHA validation does not prove a successful push-CI run for that commit.
-- **Build and publish in one write-capable job.** Rejected because checkout, dependencies, build tools, and third-party actions would share the release credential boundary.
-- **Use a third-party release action in the write job.** Rejected to keep the write-capable execution surface minimal and auditable.
-- **Persist checkout credentials or force-update release tags.** Rejected because both broaden write capability and can replace previously published history.
-- **Treat an existing tag as either unconditional success or unconditional failure.** Rejected because it cannot safely distinguish an idempotent retry from conflicting or partially completed publication.
-- **Freeze the complete workflow topology in a custom validator.** Rejected because it duplicates GitHub Actions parsing, couples tests to harmless YAML structure, and can block safer maintenance changes. Narrow executable contracts protect the decisions that matter without pretending in-repository tests can replace review.
+- **Automatic release on every `main` push.** Rejected because release timing and version remain an explicit operator decision.
+- **Auto-bump from conventional commit messages.** Rejected because commit syntax is useful for notes but is not authoritative version intent.
+- **Use a discovered tag as version intent.** Rejected because tags define published history or exact retry state; they do not choose the requested version.
+- **Accept an arbitrary historical or user-supplied SHA.** Rejected because only current `main` HEAD with exact successful push-CI provenance is eligible.
+- **Provide a dynamic version-suggestion UI.** Rejected because suggestions can become stale or appear authoritative; the operator supplies one explicit canonical version and server-side validation decides eligibility.
+- **Maintain parallel release lines or release branches.** Rejected for now in favor of one globally increasing sequence with one current-`main` authority.
+- **Allow SemVer build metadata.** Rejected because it does not affect SemVer precedence and would complicate the single ordered publication history.
+- **Use a monolithic write-capable job.** Rejected because checkout, provenance queries, repository scripts, dependencies, and build tools would share the release credential boundary.
+- **Treat every existing tag as success or every orphan as failure.** Rejected because the former accepts conflicts and the latter prevents deterministic completion of the exact requested partial retry.
+- **Use a generic full-YAML validator.** Rejected because it duplicates GitHub Actions parsing, freezes harmless structure, and still cannot defend against coordinated malicious changes to tests and workflow.
 
 ## Consequences
 
-Every automatic or manual release is bound to one exact commit with successful push-CI provenance. Read-only preparation is separated from the smallest practical write boundary, and publication retries are deterministic and idempotent across matching partial state.
+An operator must choose and enter each version, including release candidates. Invalid versions, non-increasing versions, stale `main`, orphan tags, or conflicting publication state produce a failed run that requires the underlying state or request to be corrected; the workflow does not guess or repair conflicts.
 
-The release process now depends on versioned repository scripts and their behavioral tests rather than a broad third-party release action. Security-sensitive workflow changes require independent review, while focused contract tests provide fast feedback for accidental drift without making routine CI maintenance rewrite a snapshot validator.
+A release candidate can be promoted on the same tested SHA—for example, `v1.2.0-rc.1` to `v1.2.0-rc.2` or `v1.2.0`—with explicit deterministic promotion notes. Any release after a final version requires a new commit, even if that commit only records the next releasable state.
 
-The workflow is intentionally specific to public GitHub authority and the repository's `CI` workflow identity. Changing the hosting authority, provenance workflow, permission boundary, or publication model requires revisiting this decision rather than silently widening the existing contract.
+Publication remains exact-SHA, fail-closed, non-forceful, deterministic, and idempotent. The read-only preparation/minimal publisher boundary, checksum verification, and credential isolation reduce the write-capable surface, while independent review remains necessary for security-sensitive workflow changes.

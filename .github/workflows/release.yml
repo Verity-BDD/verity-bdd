@@ -1,14 +1,10 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
-      library_sha:
-        description: Exact main-branch commit with a successful push CI run
+      version:
+        description: Release version (for example v1.2.3 or v1.2.3-rc.1)
         required: true
         type: string
 
@@ -22,12 +18,7 @@ jobs:
   build-release:
     name: Validate provenance and prepare release
     if: >-
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_repository.full_name == github.repository &&
-       github.event.workflow_run.head_branch == github.event.repository.default_branch) ||
-      github.event_name == 'workflow_dispatch'
+      github.ref == 'refs/heads/main'
     permissions:
       actions: read
       contents: read
@@ -40,32 +31,10 @@ jobs:
       publish_script_sha256: ${{ steps.prepare.outputs.publish_script_sha256 }}
 
     steps:
-      - name: Select exact candidate SHA
-        id: source
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
-          MANUAL_SHA: ${{ inputs.library_sha }}
-        run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
-            library_sha="$WORKFLOW_RUN_SHA"
-          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            library_sha="$MANUAL_SHA"
-          else
-            echo "unsupported release event: $EVENT_NAME" >&2
-            exit 1
-          fi
-          [[ "$library_sha" =~ ^[0-9a-f]{40}$ ]] || {
-            echo "release SHA must be exactly 40 lowercase hexadecimal characters" >&2
-            exit 1
-          }
-          echo "library_sha=$library_sha" >> "$GITHUB_OUTPUT"
-
       - name: Checkout exact candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ steps.source.outputs.library_sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
@@ -73,7 +42,7 @@ jobs:
       - name: Verify checkout identity
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${{ steps.source.outputs.library_sha }}"
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
           test -z "$(git status --porcelain)"
 
       - name: Prove successful push CI provenance
@@ -82,15 +51,17 @@ jobs:
           ACTIONS_TOKEN: ${{ github.token }}
           API_URL: ${{ github.api_url }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_PATH: ${{ github.event_path }}
-          LIBRARY_SHA: ${{ steps.source.outputs.library_sha }}
+          LIBRARY_SHA: ${{ github.sha }}
           REPOSITORY: ${{ github.repository }}
         run: python3 .github/scripts/release/verify_provenance.py
 
       - name: Prepare deterministic release metadata
         id: prepare
         env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
           LIBRARY_SHA: ${{ steps.provenance.outputs.library_sha }}
         run: python3 .github/scripts/release/prepare_release.py
 

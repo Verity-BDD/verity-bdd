@@ -20,7 +20,10 @@ from typing import Any, Protocol
 
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-VERSION_RE = re.compile(r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
+VERSION_RE = re.compile(
+    r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+)
 MAX_RESPONSE_BYTES = 1_048_576
 MAX_BODY_BYTES = 524_288
 MAX_TAG_INDIRECTIONS = 5
@@ -96,6 +99,21 @@ class GitHubClient:
         return status_code, decoded
 
 
+def _is_prerelease(version: str) -> bool:
+    match = VERSION_RE.fullmatch(version)
+    if match is None:
+        raise PublishError("invalid release version")
+    prerelease = match.group(4)
+    if prerelease is not None and any(
+        identifier.isdecimal()
+        and len(identifier) > 1
+        and identifier.startswith("0")
+        for identifier in prerelease.split(".")
+    ):
+        raise PublishError("invalid release version")
+    return prerelease is not None
+
+
 def _validate_inputs(
     repository: str, default_branch: str, library_sha: str, version: str, body: str
 ) -> None:
@@ -105,8 +123,7 @@ def _validate_inputs(
         raise PublishError("invalid default branch")
     if not SHA_RE.fullmatch(library_sha):
         raise PublishError("invalid library SHA")
-    if not VERSION_RE.fullmatch(version):
-        raise PublishError("invalid release version")
+    _is_prerelease(version)
     if not body or len(body.encode()) > MAX_BODY_BYTES:
         raise PublishError("invalid release body")
 
@@ -126,7 +143,7 @@ def _expected_release(version: str, library_sha: str, body: str) -> dict[str, An
         "name": f"Release {version}",
         "body": body,
         "draft": False,
-        "prerelease": False,
+        "prerelease": _is_prerelease(version),
     }
 
 
@@ -141,8 +158,8 @@ def _require_exact_release(
             raise PublishError(f"existing release has conflicting {field}")
     if value.get("draft") is not False:
         raise PublishError("release must be explicitly non-draft")
-    if value.get("prerelease") is not False:
-        raise PublishError("release must be explicitly non-prerelease")
+    if value.get("prerelease") is not expected["prerelease"]:
+        raise PublishError("release has conflicting prerelease flag")
 
 
 def _get_release(client: Client, repository: str, version: str) -> Any | None:

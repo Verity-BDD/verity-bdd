@@ -46,28 +46,24 @@ class ReleaseWorkflowSecurityTest(unittest.TestCase):
         self.release = RELEASE.read_text()
         self.jobs = job_blocks(self.release)
 
-    def test_automatic_release_requires_successful_push_ci_on_main(self) -> None:
-        self.assertEqual(
-            indented_block(self.release, "workflow_run:", 2).strip(),
-            'workflows: ["CI"]\n    types: [completed]\n    branches: [main]',
-        )
-        gate = indented_block(self.jobs["build-release"], "if: >-", 4)
-        for requirement in (
-            "github.event_name == 'workflow_run'",
-            "github.event.workflow_run.conclusion == 'success'",
-            "github.event.workflow_run.event == 'push'",
-            "github.event.workflow_run.head_repository.full_name == github.repository",
-            "github.event.workflow_run.head_branch == github.event.repository.default_branch",
-            "github.event_name == 'workflow_dispatch'",
-        ):
-            self.assertIn(requirement, gate)
-
-    def test_manual_release_requires_an_exact_sha_with_ci_provenance(self) -> None:
+    def test_release_is_manual_only_with_required_version_and_dispatch_sha(self) -> None:
+        self.assertNotIn("workflow_run:", self.release)
         dispatch = indented_block(self.release, "workflow_dispatch:", 2)
-        self.assertRegex(dispatch, r"(?m)^ {6}library_sha:$")
+        self.assertRegex(dispatch, r"(?m)^ {6}version:$")
         self.assertRegex(dispatch, r"(?m)^ {8}required: true$")
+        self.assertNotIn("library_sha:", dispatch)
         build = self.jobs["build-release"]
-        self.assertIn("[[ \"$library_sha\" =~ ^[0-9a-f]{40}$ ]]", build)
+        self.assertEqual(indented_block(build, "if: >-", 4).strip(), "github.ref == 'refs/heads/main'")
+        self.assertIn("LIBRARY_SHA: ${{ github.sha }}", build)
+        self.assertIn("VERSION: ${{ inputs.version }}", build)
+        for history_env in (
+            "ACTIONS_TOKEN: ${{ github.token }}",
+            "API_URL: ${{ github.api_url }}",
+            "REPOSITORY: ${{ github.repository }}",
+        ):
+            self.assertGreaterEqual(build.count(history_env), 2)
+        self.assertNotIn("WORKFLOW_RUN_SHA", build)
+        self.assertNotIn("MANUAL_SHA", build)
         self.assertEqual(
             build.count("run: python3 .github/scripts/release/verify_provenance.py"),
             1,
@@ -80,10 +76,10 @@ class ReleaseWorkflowSecurityTest(unittest.TestCase):
             indented_block(build, "permissions:", 4).strip(),
             "actions: read\n      contents: read",
         )
-        self.assertIn("ref: ${{ steps.source.outputs.library_sha }}", build)
+        self.assertIn("ref: ${{ github.sha }}", build)
         self.assertIn("persist-credentials: false", build)
         self.assertIn(
-            'test "$(git rev-parse HEAD)" = "${{ steps.source.outputs.library_sha }}"',
+            'test "$(git rev-parse HEAD)" = "${{ github.sha }}"',
             build,
         )
         self.assertNotIn("contents: write", build)

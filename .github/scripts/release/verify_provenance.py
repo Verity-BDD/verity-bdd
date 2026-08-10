@@ -69,13 +69,25 @@ def _validate_inputs(repository: str, default_branch: str, library_sha: str) -> 
         raise ProvenanceError("library SHA must be 40 lowercase hexadecimal characters")
 
 
-def validate_workflow_run_event(
-    event: Any, repository: str, default_branch: str, library_sha: str
+def validate_manual_candidate(
+    head: Any,
+    runs_payload: Any,
+    repository: str,
+    default_branch: str,
+    library_sha: str,
 ) -> str:
-    _validate_inputs(repository, default_branch, library_sha)
-    if type(event) is not dict:
-        raise ProvenanceError("event payload must be an object")
-    return _validate_run(event.get("workflow_run"), repository, default_branch, library_sha)
+    if default_branch != "main":
+        raise ProvenanceError("release dispatch is allowed only on main")
+    if type(head) is not dict or head.get("ref") != "refs/heads/main":
+        raise ProvenanceError("candidate is not the current remote main HEAD")
+    head_object = head.get("object")
+    if (
+        type(head_object) is not dict
+        or head_object.get("type") != "commit"
+        or head_object.get("sha") != library_sha
+    ):
+        raise ProvenanceError("candidate is not the current remote main HEAD")
+    return validate_manual_runs(runs_payload, repository, default_branch, library_sha)
 
 
 def validate_manual_runs(
@@ -143,6 +155,31 @@ def _read_json_response(response: Any) -> dict[str, Any]:
     return decoded
 
 
+def fetch_main_head(
+    api_url: str, token: str, repository: str
+) -> dict[str, Any]:
+    if not token or "\n" in token or "\r" in token:
+        raise ProvenanceError("invalid Actions token")
+    origin = _api_origin(api_url)
+    request = urllib.request.Request(
+        f"{origin}/repos/{repository}/git/ref/heads/main",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "verity-bdd-release-provenance",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    opener = urllib.request.build_opener(_NoRedirect)
+    try:
+        with opener.open(request, timeout=20) as response:
+            return _read_json_response(response)
+    except urllib.error.HTTPError as error:
+        raise ProvenanceError(f"GitHub API returned HTTP {error.code}") from error
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        raise ProvenanceError("unable to read current main HEAD") from error
+
+
 def fetch_manual_runs(
     api_url: str,
     token: str,
@@ -192,30 +229,22 @@ def _write_output(library_sha: str) -> None:
 
 def main() -> int:
     try:
-        event_name = os.environ["EVENT_NAME"]
-        event_path = Path(os.environ["EVENT_PATH"])
         repository = os.environ["REPOSITORY"]
         default_branch = os.environ["DEFAULT_BRANCH"]
         library_sha = os.environ["LIBRARY_SHA"]
-        if event_name == "workflow_run":
-            with event_path.open(encoding="utf-8") as source:
-                event = json.load(source)
-            validated_sha = validate_workflow_run_event(
-                event, repository, default_branch, library_sha
-            )
-        elif event_name == "workflow_dispatch":
-            payload = fetch_manual_runs(
-                os.environ["API_URL"],
-                os.environ["ACTIONS_TOKEN"],
-                repository,
-                default_branch,
-                library_sha,
-            )
-            validated_sha = validate_manual_runs(
-                payload, repository, default_branch, library_sha
-            )
-        else:
-            raise ProvenanceError("unsupported release event")
+        api_url = os.environ["API_URL"]
+        token = os.environ["ACTIONS_TOKEN"]
+        head = fetch_main_head(api_url, token, repository)
+        payload = fetch_manual_runs(
+            api_url,
+            token,
+            repository,
+            default_branch,
+            library_sha,
+        )
+        validated_sha = validate_manual_candidate(
+            head, payload, repository, default_branch, library_sha
+        )
         _write_output(validated_sha)
         print(f"validated successful push CI provenance for {validated_sha}")
         return 0

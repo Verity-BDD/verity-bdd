@@ -93,43 +93,67 @@ def valid_workflow_run() -> dict:
     }
 
 
-class WorkflowRunProvenanceTest(unittest.TestCase):
-    def test_accepts_only_the_exact_successful_upstream_push_run(self) -> None:
-        event = {"workflow_run": valid_workflow_run()}
+class ManualProvenanceTest(unittest.TestCase):
+    def test_accepts_only_current_main_head_with_one_successful_ci_run(self) -> None:
+        payload = {"total_count": 1, "workflow_runs": [valid_workflow_run()]}
+        head = {"ref": "refs/heads/main", "object": {"type": "commit", "sha": SHA}}
         self.assertEqual(
-            verify_provenance.validate_workflow_run_event(
-                event, REPOSITORY, DEFAULT_BRANCH, SHA
+            verify_provenance.validate_manual_candidate(
+                head, payload, REPOSITORY, DEFAULT_BRANCH, SHA
             ),
             SHA,
         )
-
-    def test_rejects_pr_failed_foreign_wrong_branch_or_wrong_sha_runs(self) -> None:
-        mutations = {
-            "pull request": ("event", "pull_request"),
-            "failed": ("conclusion", "failure"),
-            "foreign": ("head_repository", {"full_name": "attacker/fork"}),
-            "wrong branch": ("head_branch", "feature"),
-            "wrong SHA": ("head_sha", "b" * 40),
-        }
-        for name, (field, value) in mutations.items():
-            with self.subTest(name=name):
-                run = valid_workflow_run()
-                run[field] = value
+        for branch, candidate_head in (
+            ("release", head),
+            ("main", {**head, "object": {"type": "commit", "sha": "b" * 40}}),
+        ):
+            with self.subTest(branch=branch, head=candidate_head):
                 with self.assertRaises(verify_provenance.ProvenanceError):
-                    verify_provenance.validate_workflow_run_event(
-                        {"workflow_run": run}, REPOSITORY, DEFAULT_BRANCH, SHA
+                    verify_provenance.validate_manual_candidate(
+                        candidate_head, payload, REPOSITORY, branch, SHA
                     )
 
-
-class ManualProvenanceTest(unittest.TestCase):
-    def test_accepts_one_exact_completed_successful_push_ci_run(self) -> None:
+    def test_accepts_realistic_main_ref_payload_with_extra_fields(self) -> None:
         payload = {"total_count": 1, "workflow_runs": [valid_workflow_run()]}
+        head = {
+            "ref": "refs/heads/main",
+            "node_id": "MDM6UmVmMTpyZWZzL2hlYWRzL21haW4=",
+            "url": f"https://api.github.com/repos/{REPOSITORY}/git/refs/heads/main",
+            "object": {
+                "type": "commit",
+                "sha": SHA,
+                "url": f"https://api.github.com/repos/{REPOSITORY}/git/commits/{SHA}",
+            },
+        }
+
         self.assertEqual(
-            verify_provenance.validate_manual_runs(
-                payload, REPOSITORY, DEFAULT_BRANCH, SHA
+            verify_provenance.validate_manual_candidate(
+                head, payload, REPOSITORY, DEFAULT_BRANCH, SHA
             ),
             SHA,
         )
+
+    def test_rejects_missing_or_wrong_main_ref_fields(self) -> None:
+        payload = {"total_count": 1, "workflow_runs": [valid_workflow_run()]}
+        valid_head = {
+            "ref": "refs/heads/main",
+            "object": {"type": "commit", "sha": SHA},
+        }
+        invalid_heads = (
+            None,
+            {},
+            {**valid_head, "ref": "refs/heads/release"},
+            {**valid_head, "object": None},
+            {**valid_head, "object": {"type": "tag", "sha": SHA}},
+            {**valid_head, "object": {"type": "commit", "sha": "b" * 40}},
+        )
+
+        for head in invalid_heads:
+            with self.subTest(head=head):
+                with self.assertRaises(verify_provenance.ProvenanceError):
+                    verify_provenance.validate_manual_candidate(
+                        head, payload, REPOSITORY, DEFAULT_BRANCH, SHA
+                    )
 
     def test_fails_closed_for_zero_multiple_pending_failed_or_malformed_runs(self) -> None:
         cases = {
@@ -173,6 +197,26 @@ class ManualProvenanceTest(unittest.TestCase):
                         DEFAULT_BRANCH,
                         SHA,
                     )
+
+    def test_fetches_current_main_head_from_fixed_github_api(self) -> None:
+        response = InstrumentedResponse(
+            json.dumps(
+                {"ref": "refs/heads/main", "object": {"type": "commit", "sha": SHA}}
+            ).encode()
+        )
+        opener = FakeOpener(response)
+        with mock.patch.object(
+            verify_provenance.urllib.request, "build_opener", return_value=opener
+        ):
+            head = verify_provenance.fetch_main_head(
+                "https://api.github.com", "dummy-token", REPOSITORY
+            )
+        self.assertEqual(head["object"]["sha"], SHA)
+        self.assertEqual(
+            opener.requests[0].full_url,
+            f"https://api.github.com/repos/{REPOSITORY}/git/ref/heads/main",
+        )
+        self.assertEqual(response.read_sizes, [verify_provenance.MAX_RESPONSE_BYTES + 1])
 
     def test_authenticated_actions_request_never_follows_redirects(self) -> None:
         for location in (
