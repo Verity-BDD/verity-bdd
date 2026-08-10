@@ -1,200 +1,114 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main, master]
   workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (for example v1.2.3 or v1.2.3-rc.1)
+        required: true
+        type: string
 
-permissions:
-  contents: write
-  packages: write
+permissions: {}
+
+concurrency:
+  group: release-publication
+  cancel-in-progress: false
 
 jobs:
-  release:
-    name: Create Release
+  build-release:
+    name: Validate provenance and prepare release
+    if: >-
+      github.ref == 'refs/heads/main'
+    permissions:
+      actions: read
+      contents: read
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success' && !contains(github.event.workflow_run.head_commit.message, '[skip ci]')
+    timeout-minutes: 10
+    outputs:
+      library_sha: ${{ steps.provenance.outputs.library_sha }}
+      version: ${{ steps.prepare.outputs.version }}
+      release_body_b64: ${{ steps.prepare.outputs.release_body_b64 }}
+      publish_script_sha256: ${{ steps.prepare.outputs.publish_script_sha256 }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        fetch-tags: true
-        token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
 
+      - name: Verify checkout identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          test -z "$(git status --porcelain)"
 
+      - name: Prove successful push CI provenance
+        id: provenance
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          API_URL: ${{ github.api_url }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          LIBRARY_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: python3 .github/scripts/release/verify_provenance.py
 
-    - name: Install git-cliff
-      run: |
-        curl -L https://github.com/orhun/git-cliff/releases/download/v2.2.2/git-cliff-2.2.2-x86_64-unknown-linux-gnu.tar.gz | tar -xz
-        sudo mv git-cliff-2.2.2/git-cliff /usr/local/bin/
+      - name: Prepare deterministic release metadata
+        id: prepare
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          LIBRARY_SHA: ${{ steps.provenance.outputs.library_sha }}
+        run: python3 .github/scripts/release/prepare_release.py
 
-    - name: Install go-semantic-release
-      run: |
-        curl -L https://github.com/go-semantic-release/semantic-release/releases/download/v2.31.0/semantic-release_v2.31.0_linux_amd64 -o /usr/local/bin/semantic-release
-        chmod +x /usr/local/bin/semantic-release
+  publish-release:
+    name: Publish exact release
+    needs: build-release
+    if: needs.build-release.outputs.version != ''
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
-    - name: Generate changelog
-      run: |
-        git-cliff --latest --config cliff.toml --output CHANGELOG.md
+    steps:
+      - name: Reconcile exact tag and GitHub Release
+        env:
+          API_URL: ${{ github.api_url }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          LIBRARY_SHA: ${{ needs.build-release.outputs.library_sha }}
+          PUBLISH_SCRIPT_SHA256: ${{ needs.build-release.outputs.publish_script_sha256 }}
+          RELEASE_BODY_B64: ${{ needs.build-release.outputs.release_body_b64 }}
+          RELEASE_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ needs.build-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          umask 077
+          temp_dir=$(mktemp -d)
+          trap 'rm -rf "$temp_dir"' EXIT
 
-    - name: Create release
-      id: release
-      run: |
-        set -euo pipefail
+          printf '%s' "$RELEASE_TOKEN" > "$temp_dir/token"
+          unset RELEASE_TOKEN
 
-        # Debug trap for errors
-        trap 'echo "❌ Error on line $LINENO. Command was: $BASH_COMMAND. Exit code: $?" >&2' ERR
+          script_url="https://raw.githubusercontent.com/${REPOSITORY}/${LIBRARY_SHA}/.github/scripts/release/publish_release.py"
+          env -i HOME="$temp_dir" PATH=/usr/bin:/bin \
+            /usr/bin/curl -q --fail --silent --show-error \
+            --proto '=https' --tlsv1.2 --max-redirs 0 \
+            --output "$temp_dir/publish_release.py" "$script_url"
+          printf '%s  %s\n' "$PUBLISH_SCRIPT_SHA256" "$temp_dir/publish_release.py" \
+            > "$temp_dir/publish_release.py.sha256"
+          sha256sum --check "$temp_dir/publish_release.py.sha256"
 
-        echo "🔍 Debugging git state..."
-        echo "Current directory: $(pwd)"
-        echo "Current commit: $(git rev-parse HEAD)"
-        echo "Current branch: $(git branch --show-current)"
-        echo ""
-        echo "🏷️  Available tags before fetch:"
-        git tag --sort=-version:refname | head -10 || echo "No tags found"
-        echo ""
-        echo "📥 Fetching remote tags..."
-        git fetch --tags origin
-        echo ""
-        echo "🏷️  Available tags after fetch:"
-        git tag --sort=-version:refname | head -10 || echo "No tags found after fetch"
-        echo ""
-        echo "📊 Git describe test:"
-        git describe --tags --abbrev=0 || echo "git describe failed"
-        echo ""
-        echo "Checking for releasable changes..."
-
-        # Check if there are any changes since last release
-        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-        echo "📍 LAST_TAG from git describe: '$LAST_TAG'"
-
-        # Fallback to alternative method if describe failed
-        if [ -z "$LAST_TAG" ]; then
-            echo "🔄 Trying alternative method to get last tag..."
-            LAST_TAG=$(git tag --sort=-version:refname | head -n 1 2>/dev/null || echo "")
-            echo "📍 LAST_TAG from alternative method: '$LAST_TAG'"
-        fi
-
-        if [ -z "$LAST_TAG" ] || [ "$LAST_TAG" = "" ]; then
-          echo "✅ No tags found, this will be the first release"
-          NEXT_VERSION="v0.1.0"
-        else
-          echo "✅ Found last tag: $LAST_TAG"
-
-          # Count commits since last tag with error handling
-          echo "📊 Counting commits since $LAST_TAG..."
-          COMMITS_SINCE_TAG=$(git rev-list --count $LAST_TAG..HEAD 2>/dev/null || echo "0")
-          echo "📈 COMMITS_SINCE_TAG: $COMMITS_SINCE_TAG"
-
-          if [ -z "$COMMITS_SINCE_TAG" ]; then
-            COMMITS_SINCE_TAG="0"
-          fi
-
-          if [ "$COMMITS_SINCE_TAG" = "0" ]; then
-            echo "ℹ️  No new commits since last tag ($LAST_TAG)"
-            echo "version=" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Use simple version increment logic
-          echo "🔍 Analyzing commits for version bump..."
-          if git log --format="%s" $LAST_TAG..HEAD | grep -q "^feat"; then
-            BUMP="minor"
-          elif git log --format="%s" $LAST_TAG..HEAD | grep -q "^fix"; then
-            BUMP="patch"
-          else
-            BUMP="patch"
-          fi
-
-          echo "🔢 Parsing version from $LAST_TAG..."
-          CURRENT_VERSION=${LAST_TAG#v}
-          echo "  CURRENT_VERSION: $CURRENT_VERSION"
-
-          # Use cut instead of array for better compatibility
-          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
-          MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
-          PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
-
-          echo "  MAJOR: $MAJOR"
-          echo "  MINOR: $MINOR"
-          echo "  PATCH: $PATCH"
-          echo "  BUMP type: $BUMP"
-
-          # Validate version parts
-          if [ -z "$MAJOR" ] || [ -z "$MINOR" ] || [ -z "$PATCH" ]; then
-            echo "❌ ERROR: Failed to parse version parts from $CURRENT_VERSION"
-            exit 1
-          fi
-
-          case $BUMP in
-            "minor")
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              ;;
-            "patch")
-              PATCH=$((PATCH + 1))
-              ;;
-            "major")
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-          esac
-
-          echo "  After bump: MAJOR=$MAJOR MINOR=$MINOR PATCH=$PATCH"
-          NEXT_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "🎯 Calculated NEXT_VERSION: $NEXT_VERSION"
-        fi
-
-        # Validate that we have a version
-        if [ -z "$NEXT_VERSION" ] || [ "$NEXT_VERSION" = "" ]; then
-            echo "❌ ERROR: NEXT_VERSION is empty or undefined"
-            echo "version=" >> $GITHUB_OUTPUT
-            exit 1
-        fi
-
-        # Validate version format
-        if [[ ! "$NEXT_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "❌ ERROR: Invalid version format: $NEXT_VERSION"
-            exit 1
-        fi
-
-        echo "✅ Successfully determined and validated version: $NEXT_VERSION"
-        echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
-
-        # Commit changelog update
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add CHANGELOG.md
-        if [ -n "$(git status --porcelain CHANGELOG.md)" ]; then
-          git commit -m "chore(release): update changelog for $NEXT_VERSION [skip ci]"
-          git push origin main
-        fi
-
-        # Create tag
-        git tag -a $NEXT_VERSION -m "Release $NEXT_VERSION"
-
-        # Generate release notes for current version only
-        git-cliff --config cliff-github.toml --latest --tag $NEXT_VERSION > release_notes.md
-
-        echo "changelog<<EOF" >> $GITHUB_OUTPUT
-        cat release_notes.md >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-
-    - name: Create GitHub Release
-      if: steps.release.outputs.version != ''
-      uses: softprops/action-gh-release@v2
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.release.outputs.version }}
-        name: Release ${{ steps.release.outputs.version }}
-        body: ${{ steps.release.outputs.changelog }}
-        generate_release_notes: false
-        draft: false
-        prerelease: false
-
+          env -i HOME="$temp_dir" PATH=/usr/bin:/bin \
+            python3 "$temp_dir/publish_release.py" \
+              --api-url "$API_URL" \
+              --default-branch "$DEFAULT_BRANCH" \
+              --library-sha "$LIBRARY_SHA" \
+              --release-body-b64 "$RELEASE_BODY_B64" \
+              --repository "$REPOSITORY" \
+              --token-file "$temp_dir/token" \
+              --version "$VERSION"
