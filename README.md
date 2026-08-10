@@ -7,6 +7,8 @@
 
 Verity-BDD is a Go implementation of the Screenplay Pattern, focused on acceptance and HTTP API testing. It requires **Go 1.23.4 or later**.
 
+![Verity-BDD](https://raw.githubusercontent.com/nchursin/resources/refs/heads/master/verity-bdd/dark.png)
+
 ## Installation
 
 ```bash
