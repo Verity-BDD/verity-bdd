@@ -96,19 +96,27 @@ class ReleaseWorkflowSecurityTest(unittest.TestCase):
             "contents: write",
         )
         self.assertEqual(action_refs(publish), [])
-        self.assertEqual(len(re.findall(r"(?m)^      - name:", publish)), 1)
+        self.assertEqual(
+            len(re.findall(r"(?m)^      - [A-Za-z][A-Za-z0-9_-]*:", publish)),
+            1,
+        )
+        self.assertEqual(
+            publish.count('env -i HOME="$temp_dir" PATH=/usr/bin:/bin'),
+            2,
+        )
         for requirement in (
             "LIBRARY_SHA: ${{ needs.build-release.outputs.library_sha }}",
             "PUBLISH_SCRIPT_SHA256: ${{ needs.build-release.outputs.publish_script_sha256 }}",
             'script_url="https://raw.githubusercontent.com/${REPOSITORY}/${LIBRARY_SHA}/',
             "--proto '=https' --tlsv1.2 --max-redirs 0",
-            "sha256sum --check",
+            'sha256sum --check "$temp_dir/publish_release.py.sha256"',
             'printf \'%s\' "$RELEASE_TOKEN" > "$temp_dir/token"',
             "unset RELEASE_TOKEN",
-            'env -i HOME="$temp_dir" PATH=/usr/bin:/bin',
+            '--library-sha "$LIBRARY_SHA"',
             '--token-file "$temp_dir/token"',
         ):
             self.assertIn(requirement, publish)
+        self.assertNotRegex(publish, r"(?:\|\||&&)\s*true\b|\btrue\s*\|\|")
 
     def test_release_has_no_execution_bypasses_or_floating_targets(self) -> None:
         release_dir = ROOT / ".github" / "scripts" / "release"
