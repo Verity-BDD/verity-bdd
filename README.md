@@ -242,6 +242,7 @@ Production code is exposed through these importable packages:
 - `github.com/verity-bdd/verity-bdd/verity_abilities/take_notes` — actor notes
 - `github.com/verity-bdd/verity-bdd/verity_abilities/wait` — polling and channel waits
 - `github.com/verity-bdd/verity-bdd/verity_answerable` — static value questions
+- `github.com/verity-bdd/verity-bdd/verity_interactions/log` — reporter-visible Log interaction
 - `github.com/verity-bdd/verity-bdd/verity_expectations` — expectation factories
 - `github.com/verity-bdd/verity-bdd/verity_expectations/ensure` — assertion activities
 - `github.com/verity-bdd/verity-bdd/verity_reporting` — reporter contracts and adapters

@@ -39,6 +39,7 @@ func (r *countingReporter) OnTestFinish(reporting.TestResult) {
 func (*countingReporter) OnStepStart(string) {}
 
 func (*countingReporter) OnStepFinish(reporting.TestResult) {}
+func (*countingReporter) OnLog(reporting.LogEntry)          {}
 
 func (*countingReporter) SetOutput(io.Writer) {}
 
