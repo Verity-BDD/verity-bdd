@@ -7,6 +7,11 @@ on:
         description: Release version (for example v1.2.3 or v1.2.3-rc.1)
         required: true
         type: string
+      preview:
+        description: Validate and report the release without publishing it
+        required: false
+        default: false
+        type: boolean
 
 permissions: {}
 
@@ -27,6 +32,9 @@ jobs:
     outputs:
       library_sha: ${{ steps.provenance.outputs.library_sha }}
       version: ${{ steps.prepare.outputs.version }}
+      release_type: ${{ steps.prepare.outputs.release_type }}
+      predecessor: ${{ steps.prepare.outputs.predecessor }}
+      changelog_range: ${{ steps.prepare.outputs.changelog_range }}
       release_body_b64: ${{ steps.prepare.outputs.release_body_b64 }}
       publish_script_sha256: ${{ steps.prepare.outputs.publish_script_sha256 }}
 
@@ -65,10 +73,29 @@ jobs:
           LIBRARY_SHA: ${{ steps.provenance.outputs.library_sha }}
         run: python3 .github/scripts/release/prepare_release.py
 
+      - name: Report release preview
+        if: inputs.preview
+        env:
+          CHANGELOG_RANGE: ${{ steps.prepare.outputs.changelog_range }}
+          PREDECESSOR: ${{ steps.prepare.outputs.predecessor }}
+          RELEASE_BODY_B64: ${{ steps.prepare.outputs.release_body_b64 }}
+          RELEASE_TYPE: ${{ steps.prepare.outputs.release_type }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+          LIBRARY_SHA: ${{ steps.provenance.outputs.library_sha }}
+        run: |
+          set -euo pipefail
+          printf 'requested version: %s\n' "$VERSION"
+          printf 'release type: %s\n' "$RELEASE_TYPE"
+          printf 'library SHA: %s\n' "$LIBRARY_SHA"
+          printf 'predecessor: %s\n' "$PREDECESSOR"
+          printf 'changelog range: %s\n' "$CHANGELOG_RANGE"
+          printf 'release notes:\n'
+          printf '%s' "$RELEASE_BODY_B64" | base64 --decode
+
   publish-release:
     name: Publish exact release
     needs: build-release
-    if: needs.build-release.outputs.version != ''
+    if: inputs.preview != true && needs.build-release.outputs.version != ''
     permissions:
       contents: write
     runs-on: ubuntu-latest
