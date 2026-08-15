@@ -43,6 +43,9 @@ class ReleaseMetadata(NamedTuple):
     version: str
     body: str
     publish_script_sha256: str
+    release_type: str = ""
+    predecessor: str = "none"
+    changelog_range: str = ""
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -290,6 +293,9 @@ def build_release(
         version=requested_version,
         body=_release_body(library_sha, commits, promoted_from),
         publish_script_sha256=script_digest,
+        release_type="prerelease" if "-" in requested_version else "final",
+        predecessor=predecessor[1] if predecessor is not None else "none",
+        changelog_range=revision_range,
     )
 
 
@@ -299,6 +305,9 @@ def _write_outputs(metadata: ReleaseMetadata) -> None:
         raise PrepareError("GITHUB_OUTPUT is not set")
     values = {
         "version": metadata.version,
+        "release_type": metadata.release_type,
+        "predecessor": metadata.predecessor,
+        "changelog_range": metadata.changelog_range,
         "release_body_b64": base64.b64encode(metadata.body.encode()).decode("ascii"),
         "publish_script_sha256": metadata.publish_script_sha256,
     }
