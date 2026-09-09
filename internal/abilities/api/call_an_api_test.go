@@ -185,7 +185,6 @@ func TestLastResponseIsSafeForConcurrentSendRequest(t *testing.T) {
 	last := ab.LastResponse()
 	if last == nil {
 		t.Fatalf("expected last response to be stored")
-		return
 	}
 	if last.StatusCode != http.StatusAccepted {
 		t.Fatalf("expected status %d, got %d", http.StatusAccepted, last.StatusCode)
