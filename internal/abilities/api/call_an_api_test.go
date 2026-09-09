@@ -40,6 +40,8 @@ func (a *stubActor) AbilityTo(target abilities.Ability) (abilities.Ability, erro
 	return nil, fmt.Errorf("actor '%s' can't %s. Did you give them the ability?", a.name, core.AbilityName(target))
 }
 
+func (a *stubActor) Has(_ ...core.Fact) {}
+
 func (a *stubActor) AttemptsTo(activities ...core.Activity) {
 	for _, activity := range activities {
 		_ = activity.PerformAs(a.ctx, a)
@@ -183,6 +185,7 @@ func TestLastResponseIsSafeForConcurrentSendRequest(t *testing.T) {
 	last := ab.LastResponse()
 	if last == nil {
 		t.Fatalf("expected last response to be stored")
+		return
 	}
 	if last.StatusCode != http.StatusAccepted {
 		t.Fatalf("expected status %d, got %d", http.StatusAccepted, last.StatusCode)

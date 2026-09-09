@@ -8,13 +8,15 @@ import (
 )
 
 var (
-	_ func(string, func(context.Context, verity.Actor) error) verity.Interaction      = verity.Do
-	_ func(string, ...verity.Activity) verity.Task                                    = verity.TaskWhere
-	_ func() verity.FailureMode                                                       = verity.Critical
-	_ func() verity.FailureMode                                                       = verity.NonCritical
-	_ func() verity.FailureMode                                                       = verity.Optional
-	_ func(verity.Ability) string                                                     = verity.AbilityName
-	_ func(verity.TestContext, verity.Scene) verity.VerityTest                        = verity.NewVerityTest
-	_ func(context.Context, verity.TestContext) verity.VerityTest                     = verity.NewVerityTestWithContext
-	_ func(context.Context, verity.TestContext, reporting.Reporter) verity.VerityTest = verity.NewVerityTestWithReporter
+	_ func(string, func(context.Context, verity.Actor) error) verity.Interaction                                     = verity.Do
+	_ func(string, func(context.Context, verity.Actor) error) verity.Fact                                            = verity.FactAbout
+	_ func(string, func(context.Context, verity.Actor) error, func(context.Context, verity.Actor) error) verity.Fact = verity.FactAboutWithTeardown
+	_ func(string, ...verity.Activity) verity.Task                                                                   = verity.TaskWhere
+	_ func() verity.FailureMode                                                                                      = verity.Critical
+	_ func() verity.FailureMode                                                                                      = verity.NonCritical
+	_ func() verity.FailureMode                                                                                      = verity.Optional
+	_ func(verity.Ability) string                                                                                    = verity.AbilityName
+	_ func(verity.TestContext, verity.Scene) verity.VerityTest                                                       = verity.NewVerityTest
+	_ func(context.Context, verity.TestContext) verity.VerityTest                                                    = verity.NewVerityTestWithContext
+	_ func(context.Context, verity.TestContext, reporting.Reporter) verity.VerityTest                                = verity.NewVerityTestWithReporter
 )

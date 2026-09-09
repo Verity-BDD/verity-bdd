@@ -73,6 +73,22 @@ func (mr *MockActorMockRecorder) AttemptsTo(activities ...any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AttemptsTo", reflect.TypeOf((*MockActor)(nil).AttemptsTo), activities...)
 }
 
+// Has mocks base method.
+func (m *MockActor) Has(facts ...core.Fact) {
+	m.ctrl.T.Helper()
+	varargs := []any{}
+	for _, fact := range facts {
+		varargs = append(varargs, fact)
+	}
+	m.ctrl.Call(m, "Has", varargs...)
+}
+
+// Has indicates an expected call of Has.
+func (mr *MockActorMockRecorder) Has(facts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Has", reflect.TypeOf((*MockActor)(nil).Has), facts...)
+}
+
 // Context mocks base method.
 func (m *MockActor) Context() context.Context {
 	m.ctrl.T.Helper()

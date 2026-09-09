@@ -25,6 +25,9 @@ type testActor struct {
 	testContext TestContext                  // Embedded test context for error handling
 	reporter    *reporting.TestRunnerAdapter // Integrated reporter for activity tracking
 	ctx         context.Context              // Context for cancellation and timeout
+	facts       []core.Fact                  // Successfully set up actor facts
+	factsClosed bool                         // Whether fact registration is terminal
+	factsMutex  sync.Mutex                   // Serializes fact setup and terminal teardown
 	mutex       sync.RWMutex                 // Mutex for thread-safe operations
 }
 
@@ -75,6 +78,40 @@ func (ta *testActor) AbilityTo(abilityType abilities.Ability) (abilities.Ability
 
 	abName := core.AbilityName(abilityType)
 	return nil, fmt.Errorf("actor '%s' can't %s. Did you give them the ability?", ta.name, abName)
+}
+
+// Has declares facts about the actor for the current test.
+func (ta *testActor) Has(facts ...core.Fact) {
+	ta.factsMutex.Lock()
+	defer ta.factsMutex.Unlock()
+
+	if ta.factsClosed {
+		panic("verity: Actor.Has called after Shutdown")
+	}
+
+	for _, fact := range facts {
+		if err := fact.Setup(ta.ctx, ta); err != nil {
+			ta.testContext.Errorf("Fact %q setup failed for actor %q: %v", fact.Description(), ta.name, err)
+			ta.testContext.FailNow()
+			return
+		}
+		ta.facts = append(ta.facts, fact)
+	}
+}
+
+func (ta *testActor) teardownFacts() {
+	ta.factsMutex.Lock()
+	ta.factsClosed = true
+	facts := ta.facts
+	ta.facts = nil
+	ta.factsMutex.Unlock()
+
+	for i := len(facts) - 1; i >= 0; i-- {
+		fact := facts[i]
+		if err := fact.Teardown(ta.ctx, ta); err != nil {
+			ta.testContext.Errorf("Fact %q teardown failed for actor %q: %v", fact.Description(), ta.name, err)
+		}
+	}
 }
 
 // AttemptsTo executes activities and automatically handles errors through TestContext.

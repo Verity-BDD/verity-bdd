@@ -33,6 +33,8 @@ func (m *mockActor) AbilityTo(ability abilities.Ability) (abilities.Ability, err
 	return nil, nil
 }
 
+func (m *mockActor) Has(_ ...core.Fact) {}
+
 func (m *mockActor) AttemptsTo(activities ...core.Activity) {
 }
 

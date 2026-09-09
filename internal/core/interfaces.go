@@ -256,6 +256,14 @@ type Actor interface {
 	//	specificAbility := ability.(TargetType)
 	AbilityTo(ability abilities.Ability) (abilities.Ability, error)
 
+	// Has sets up facts synchronously in argument order. Successful facts are
+	// torn down automatically when the owning test shuts down. Setup failures
+	// are reported through the test context and stop later facts.
+	//
+	// Has panics with "verity: Actor.Has called after Shutdown" when the actor's
+	// test lifecycle is already terminal.
+	Has(facts ...Fact)
+
 	// AttemptsTo performs one or more activities sequentially. Activity errors
 	// are handled according to FailureMode and reported through the test context.
 	// AttemptsTo itself returns no value.
@@ -271,6 +279,14 @@ type Actor interface {
 	//		core.Do("verifies user creation", verifyUser),
 	//	)
 	AttemptsTo(activities ...Activity)
+}
+
+// Fact declares state that is true about an actor for the current test.
+// Setup establishes that state and Teardown releases it at test shutdown.
+type Fact interface {
+	Description() string
+	Setup(ctx context.Context, actor Actor) error
+	Teardown(ctx context.Context, actor Actor) error
 }
 
 // Activity represents an action that an actor can perform.

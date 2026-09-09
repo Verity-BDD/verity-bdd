@@ -2,6 +2,8 @@ package testing
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"testing"
 
 	"go.uber.org/mock/gomock"
@@ -271,6 +273,68 @@ func TestAbilityOfSupportsInterfaceAbility(t *testing.T) {
 
 	if ability.Foo() != "ok" {
 		t.Fatalf("expected Foo to return ok, got %s", ability.Foo())
+	}
+}
+
+func TestActorHasStopsAfterSetupError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	testContext := testingMocks.NewMockTestContext(ctrl)
+	actor := &testActor{
+		name:        "Sam",
+		testContext: testContext,
+		ctx:         context.Background(),
+	}
+	setupErr := errors.New("account service unavailable")
+	var setupOrder []string
+	var teardownOrder []string
+
+	testContext.EXPECT().Errorf("Fact %q setup failed for actor %q: %v", "has a savings account", "Sam", setupErr)
+	testContext.EXPECT().FailNow()
+
+	actor.Has(
+		core.FactAboutWithTeardown(
+			"is registered",
+			func(context.Context, core.Actor) error {
+				setupOrder = append(setupOrder, "A")
+				return nil
+			},
+			func(context.Context, core.Actor) error {
+				teardownOrder = append(teardownOrder, "A")
+				return nil
+			},
+		),
+		core.FactAboutWithTeardown(
+			"has a savings account",
+			func(context.Context, core.Actor) error {
+				setupOrder = append(setupOrder, "B")
+				return setupErr
+			},
+			func(context.Context, core.Actor) error {
+				teardownOrder = append(teardownOrder, "B")
+				return nil
+			},
+		),
+		core.FactAboutWithTeardown(
+			"has a credit card",
+			func(context.Context, core.Actor) error {
+				setupOrder = append(setupOrder, "C")
+				return nil
+			},
+			func(context.Context, core.Actor) error {
+				teardownOrder = append(teardownOrder, "C")
+				return nil
+			},
+		),
+	)
+	actor.teardownFacts()
+
+	if got, want := setupOrder, []string{"A", "B"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("setup order = %v, want %v", got, want)
+	}
+	if got, want := teardownOrder, []string{"A"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("teardown order = %v, want %v", got, want)
 	}
 }
 
