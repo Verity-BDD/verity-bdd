@@ -9,6 +9,7 @@ CI = ROOT / ".github" / "workflows" / "ci.yml"
 DOCS_TRIGGER = ROOT / ".github" / "workflows" / "trigger-docs.yml"
 PINNED_CHECKOUT = "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683"
 PINNED_COVERAGE_TOOL = "github.com/jandelgado/gcov2lcov@v1.1.1"
+PUBLISH_ELIGIBILITY = "inputs.preview != true && needs.build-release.outputs.version != ''"
 
 
 def indented_block(text: str, header: str, indent: int) -> str:
@@ -41,6 +42,22 @@ def action_refs(text: str) -> list[str]:
     return re.findall(r"(?m)^\s+-?\s*uses:\s*([^\s#]+)", text)
 
 
+def normalized_job_expression(job: str, key: str) -> str:
+    matches = re.findall(rf"(?m)^    {re.escape(key)}:\s*(.+?)\s*$", job)
+    if len(matches) != 1:
+        raise AssertionError(f"expected exactly one {key!r} expression")
+    return " ".join(matches[0].split())
+
+
+def assert_publish_is_preview_safe(publish: str) -> None:
+    if normalized_job_expression(publish, "if") != PUBLISH_ELIGIBILITY:
+        raise AssertionError("publish eligibility must be the complete preview-safe expression")
+    if "continue-on-error:" in publish:
+        raise AssertionError("publication must not suppress failures")
+    if re.search(r"(?:\|\||&&)\s*true\b|\btrue\s*\|\|", publish):
+        raise AssertionError("publication must not contain a shell bypass")
+
+
 class ReleaseWorkflowSecurityTest(unittest.TestCase):
     def setUp(self) -> None:
         self.release = RELEASE.read_text()
@@ -69,6 +86,55 @@ class ReleaseWorkflowSecurityTest(unittest.TestCase):
             1,
         )
 
+    def test_preview_is_read_only_and_structurally_skips_publication_after_shared_preparation(self) -> None:
+        dispatch = indented_block(self.release, "workflow_dispatch:", 2)
+        self.assertRegex(dispatch, r"(?m)^ {6}preview:$")
+        self.assertRegex(dispatch, r"(?m)^ {8}default: false$")
+        self.assertRegex(dispatch, r"(?m)^ {8}type: boolean$")
+
+        build = self.jobs["build-release"]
+        self.assertEqual(build.count("run: python3 .github/scripts/release/prepare_release.py"), 1)
+        self.assertIn("if: inputs.preview", build)
+        for preview_field in (
+            "requested version",
+            "release type",
+            "library SHA",
+            "predecessor",
+            "changelog range",
+            "release notes",
+        ):
+            self.assertIn(preview_field, build)
+        self.assertNotIn("contents: write", build)
+
+        publish = self.jobs["publish-release"]
+        assert_publish_is_preview_safe(publish)
+
+    def test_preview_true_cannot_make_write_capable_publish_job_eligible(self) -> None:
+        publish = self.jobs["publish-release"]
+        mutations = (
+            (
+                publish.replace(
+                    PUBLISH_ELIGIBILITY,
+                    f"{PUBLISH_ELIGIBILITY} || true",
+                ),
+                "preview-safe",
+            ),
+            (publish.replace("permissions:\n", "continue-on-error: true\n    permissions:\n"), "suppress"),
+        )
+        for mutated, failure in mutations:
+            with self.subTest(failure=failure):
+                self.assertNotEqual(mutated, publish)
+                with self.assertRaisesRegex(AssertionError, failure):
+                    assert_publish_is_preview_safe(mutated)
+
+    def test_legacy_local_release_script_is_removed(self) -> None:
+        self.assertFalse((ROOT / "scripts" / "release.sh").exists())
+
+    def test_release_documentation_describes_read_only_preview(self) -> None:
+        releasing = (ROOT / "docs" / "RELEASING.md").read_text().lower()
+        self.assertIn("preview", releasing)
+        self.assertIn("no remote writes", releasing)
+
     def test_build_is_read_only_and_checks_out_the_selected_sha(self) -> None:
         build = self.jobs["build-release"]
         self.assertEqual(action_refs(build), [PINNED_CHECKOUT])
@@ -87,6 +153,7 @@ class ReleaseWorkflowSecurityTest(unittest.TestCase):
     def test_publish_is_one_action_free_write_step_bound_to_the_built_sha(self) -> None:
         publish = self.jobs["publish-release"]
         self.assertIn("needs: build-release", publish)
+        assert_publish_is_preview_safe(publish)
         self.assertEqual(
             indented_block(publish, "permissions:", 4).strip(),
             "contents: write",

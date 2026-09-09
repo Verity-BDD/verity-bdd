@@ -1,3 +1,4 @@
+import base64
 import importlib.util
 import json
 import os
@@ -156,6 +157,50 @@ class PrepareReleaseTest(unittest.TestCase):
         )
         build.assert_called_once_with(Path.cwd(), "a" * 40, "v2.0.0-rc.1", history)
         write.assert_called_once_with(metadata)
+
+    def test_write_outputs_emits_exact_final_and_prerelease_metadata(self) -> None:
+        cases = (
+            prepare_release.ReleaseMetadata(
+                library_sha="a" * 40,
+                version="v1.3.0",
+                body="## Changes\n\n- final release\n\n## Provenance\n\nLibrary commit: `" + "a" * 40 + "`\n",
+                publish_script_sha256="b" * 64,
+                release_type="final",
+                predecessor="v1.2.3",
+                changelog_range="refs/tags/v1.2.3.." + "a" * 40,
+            ),
+            prepare_release.ReleaseMetadata(
+                library_sha="c" * 40,
+                version="v1.3.0-rc.2",
+                body="## Changes\n\n- prerelease\n\n## Provenance\n\nLibrary commit: `" + "c" * 40 + "`\n",
+                publish_script_sha256="d" * 64,
+                release_type="prerelease",
+                predecessor="v1.3.0-rc.1",
+                changelog_range="refs/tags/v1.3.0-rc.1.." + "c" * 40,
+            ),
+        )
+
+        for metadata in cases:
+            with self.subTest(version=metadata.version):
+                output = self.repo / f"{metadata.version}.output"
+                with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}, clear=True):
+                    prepare_release._write_outputs(metadata)
+
+                actual = dict(line.split("=", 1) for line in output.read_text().splitlines())
+                self.assertEqual(
+                    actual,
+                    {
+                        "version": metadata.version,
+                        "release_type": metadata.release_type,
+                        "predecessor": metadata.predecessor,
+                        "changelog_range": metadata.changelog_range,
+                        "release_body_b64": base64.b64encode(metadata.body.encode()).decode("ascii"),
+                        "publish_script_sha256": metadata.publish_script_sha256,
+                    },
+                )
+                self.assertEqual(
+                    base64.b64decode(actual["release_body_b64"]).decode(), metadata.body
+                )
 
     def test_prepares_requested_final_version_with_deterministic_notes(self) -> None:
         target = commit(self.repo, "feat(api): add exact provenance")

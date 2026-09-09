@@ -4,16 +4,16 @@ Releases are created manually by the GitHub Actions **Release** workflow. The wo
 
 The release model and security boundaries are recorded in [ADR 0003](adr/0003-exact-sha-release-publication.md).
 
-## Start a release
+## Preview or publish a release
 
 1. Merge the intended changes to `main`.
 2. Wait for the `CI` workflow triggered by that push to complete successfully.
 3. Open **Actions → Release → Run workflow** in GitHub.
-4. Select the `main` branch.
-5. Enter the complete version, for example:
+4. Select the `main` branch and enter the complete version, for example:
    - `v1.0.0-rc.1` for a release candidate
    - `v1.0.0` for a final release
-6. Run the workflow and verify the resulting tag and GitHub Release.
+5. For a read-only check, select **preview** and run the workflow. The preview uses the same provenance, version, release-history, and metadata preparation as publication. Its log reports the requested version, derived release type, exact source SHA, predecessor, changelog range, and generated release notes. Preview performs **no remote writes**: it cannot create or modify refs or GitHub Releases, and the write-capable publication job is skipped.
+6. To publish, leave **preview** unselected and run the workflow. Verify the resulting tag and GitHub Release.
 
 Versions must be canonical SemVer with a `v` prefix. Prerelease identifiers are supported; build metadata such as `v1.0.0+build.1` is not. The requested version must normally be strictly greater than every published release, including prereleases. The project maintains one global version sequence rather than parallel release lines.
 
