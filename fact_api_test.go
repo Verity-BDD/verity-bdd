@@ -10,6 +10,23 @@ import (
 
 type factContextKey struct{}
 
+type customerAccountFact struct {
+	setupActor    verity.Actor
+	teardownActor verity.Actor
+}
+
+func (f *customerAccountFact) Description() string { return "has a customer account" }
+
+func (f *customerAccountFact) Setup(_ context.Context, actor verity.Actor) error {
+	f.setupActor = actor
+	return nil
+}
+
+func (f *customerAccountFact) Teardown(_ context.Context, actor verity.Actor) error {
+	f.teardownActor = actor
+	return nil
+}
+
 func TestActorHasNoFactsIsNoOp(t *testing.T) {
 	t.Parallel()
 
@@ -22,21 +39,14 @@ func TestActorFactTearsDownOnShutdown(t *testing.T) {
 
 	test := verity.NewVerityTest(t, verity.Scene{})
 	actor := test.ActorCalled("Sam")
-	teardownCalled := false
+	fact := &customerAccountFact{}
 
-	actor.Has(verity.FactAboutWithTeardown(
-		"has a customer account",
-		func(context.Context, verity.Actor) error { return nil },
-		func(_ context.Context, gotActor verity.Actor) error {
-			require.Same(t, actor, gotActor)
-			teardownCalled = true
-			return nil
-		},
-	))
+	actor.Has(fact)
 
-	require.False(t, teardownCalled)
+	require.Same(t, actor, fact.setupActor)
+	require.Nil(t, fact.teardownActor)
 	test.Shutdown()
-	require.True(t, teardownCalled)
+	require.Same(t, actor, fact.teardownActor)
 }
 
 func TestActorHasSetsUpFactSynchronously(t *testing.T) {

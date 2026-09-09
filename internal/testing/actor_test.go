@@ -27,6 +27,22 @@ type ifaceImpl struct{ id string }
 
 func (i *ifaceImpl) Foo() string { return i.id }
 
+type callbackFact struct {
+	description string
+	setup       func(context.Context, core.Actor) error
+	teardown    func(context.Context, core.Actor) error
+}
+
+func (f *callbackFact) Description() string { return f.description }
+
+func (f *callbackFact) Setup(ctx context.Context, actor core.Actor) error {
+	return f.setup(ctx, actor)
+}
+
+func (f *callbackFact) Teardown(ctx context.Context, actor core.Actor) error {
+	return f.teardown(ctx, actor)
+}
+
 func TestTestActorAttemptsToWithReporting(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
@@ -294,39 +310,39 @@ func TestActorHasStopsAfterSetupError(t *testing.T) {
 	testContext.EXPECT().FailNow()
 
 	actor.Has(
-		core.FactAboutWithTeardown(
-			"is registered",
-			func(context.Context, core.Actor) error {
+		&callbackFact{
+			description: "is registered",
+			setup: func(context.Context, core.Actor) error {
 				setupOrder = append(setupOrder, "A")
 				return nil
 			},
-			func(context.Context, core.Actor) error {
+			teardown: func(context.Context, core.Actor) error {
 				teardownOrder = append(teardownOrder, "A")
 				return nil
 			},
-		),
-		core.FactAboutWithTeardown(
-			"has a savings account",
-			func(context.Context, core.Actor) error {
+		},
+		&callbackFact{
+			description: "has a savings account",
+			setup: func(context.Context, core.Actor) error {
 				setupOrder = append(setupOrder, "B")
 				return setupErr
 			},
-			func(context.Context, core.Actor) error {
+			teardown: func(context.Context, core.Actor) error {
 				teardownOrder = append(teardownOrder, "B")
 				return nil
 			},
-		),
-		core.FactAboutWithTeardown(
-			"has a credit card",
-			func(context.Context, core.Actor) error {
+		},
+		&callbackFact{
+			description: "has a credit card",
+			setup: func(context.Context, core.Actor) error {
 				setupOrder = append(setupOrder, "C")
 				return nil
 			},
-			func(context.Context, core.Actor) error {
+			teardown: func(context.Context, core.Actor) error {
 				teardownOrder = append(teardownOrder, "C")
 				return nil
 			},
-		),
+		},
 	)
 	actor.teardownFacts()
 

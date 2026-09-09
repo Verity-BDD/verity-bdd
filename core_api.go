@@ -380,12 +380,6 @@ func FactAbout(description string, setup func(context.Context, Actor) error) Fac
 	return internalcore.FactAbout(description, setup)
 }
 
-// FactAboutWithTeardown creates a fact with paired setup and teardown callbacks.
-// It panics if either callback is nil.
-func FactAboutWithTeardown(description string, setup, teardown func(context.Context, Actor) error) Fact {
-	return internalcore.FactAboutWithTeardown(description, setup, teardown)
-}
-
 // TaskWhere creates a new task with the given description and activities.
 // This is the factory function for creating composed tasks that represent
 // meaningful business operations.

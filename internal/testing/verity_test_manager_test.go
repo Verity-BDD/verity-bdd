@@ -476,17 +476,17 @@ func TestConcurrentActorHasRegistrationsTearDownExactlyOnce(t *testing.T) {
 			defer calls.Done()
 			ready.Done()
 			<-start
-			actor.Has(core.FactAboutWithTeardown(
-				"concurrent fact",
-				func(context.Context, core.Actor) error {
+			actor.Has(&callbackFact{
+				description: "concurrent fact",
+				setup: func(context.Context, core.Actor) error {
 					setupCalls.Add(1)
 					return nil
 				},
-				func(context.Context, core.Actor) error {
+				teardown: func(context.Context, core.Actor) error {
 					teardownCalls.Add(1)
 					return nil
 				},
-			))
+			})
 		}()
 	}
 
@@ -518,17 +518,17 @@ func TestActorHasConcurrentWithShutdownDoesNotLeakFact(t *testing.T) {
 			defer func() { hasPanic <- recover() }()
 			ready.Done()
 			<-start
-			actor.Has(core.FactAboutWithTeardown(
-				"racing fact",
-				func(context.Context, core.Actor) error {
+			actor.Has(&callbackFact{
+				description: "racing fact",
+				setup: func(context.Context, core.Actor) error {
 					setupCalls.Add(1)
 					return nil
 				},
-				func(context.Context, core.Actor) error {
+				teardown: func(context.Context, core.Actor) error {
 					teardownCalls.Add(1)
 					return nil
 				},
-			))
+			})
 		}()
 		go func() {
 			ready.Done()
@@ -568,20 +568,20 @@ func TestActorHasSetupCallingActorsConcurrentWithShutdownCompletes(t *testing.T)
 	var setupCalls atomic.Int64
 	var teardownCalls atomic.Int64
 
-	fact := core.FactAboutWithTeardown(
-		"coordinated fact",
-		func(context.Context, core.Actor) error {
+	fact := &callbackFact{
+		description: "coordinated fact",
+		setup: func(context.Context, core.Actor) error {
 			setupCalls.Add(1)
 			close(setupEntered)
 			<-callActors
 			test.Actors()
 			return nil
 		},
-		func(context.Context, core.Actor) error {
+		teardown: func(context.Context, core.Actor) error {
 			teardownCalls.Add(1)
 			return nil
 		},
-	)
+	}
 
 	go func() {
 		defer func() { hasDone <- recover() }()
@@ -817,14 +817,14 @@ func TestFactTeardownErrorsContinueAndFailReportedResult(t *testing.T) {
 	test := NewVerityTest(testContext, Scene{Reporter: reporter})
 	actor := test.ActorCalled("Sam")
 	fact := func(name string, teardownErr error) core.Fact {
-		return core.FactAboutWithTeardown(
-			name,
-			func(context.Context, core.Actor) error { return nil },
-			func(context.Context, core.Actor) error {
+		return &callbackFact{
+			description: name,
+			setup:       func(context.Context, core.Actor) error { return nil },
+			teardown: func(context.Context, core.Actor) error {
 				teardownOrder = append(teardownOrder, name)
 				return teardownErr
 			},
-		)
+		}
 	}
 	actor.Has(fact("first", firstErr), fact("middle", nil), fact("last", lastErr))
 
@@ -850,14 +850,14 @@ func TestActorFactsCleanupUsesLIFOAndRunsExactlyOnce(t *testing.T) {
 	actor := test.ActorCalled("Sam")
 	var teardownOrder []string
 	fact := func(name string) core.Fact {
-		return core.FactAboutWithTeardown(
-			name,
-			func(context.Context, core.Actor) error { return nil },
-			func(context.Context, core.Actor) error {
+		return &callbackFact{
+			description: name,
+			setup:       func(context.Context, core.Actor) error { return nil },
+			teardown: func(context.Context, core.Actor) error {
 				teardownOrder = append(teardownOrder, name)
 				return nil
 			},
-		)
+		}
 	}
 	shared := fact("shared")
 	actor.Has(fact("first"), shared, shared)

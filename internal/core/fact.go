@@ -31,15 +31,3 @@ func FactAbout(description string, setup func(context.Context, Actor) error) Fac
 	}
 	return &fact{description: description, setup: setup}
 }
-
-// FactAboutWithTeardown creates a fact with paired setup and teardown callbacks.
-// It panics if either callback is nil.
-func FactAboutWithTeardown(description string, setup, teardown func(context.Context, Actor) error) Fact {
-	if setup == nil {
-		panic("FactAboutWithTeardown: setup function cannot be nil")
-	}
-	if teardown == nil {
-		panic("FactAboutWithTeardown: teardown function cannot be nil")
-	}
-	return &fact{description: description, setup: setup, teardown: teardown}
-}
