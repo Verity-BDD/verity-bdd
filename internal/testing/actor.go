@@ -77,6 +77,15 @@ func (ta *testActor) AbilityTo(abilityType abilities.Ability) (abilities.Ability
 	return nil, fmt.Errorf("actor '%s' can't %s. Did you give them the ability?", ta.name, abName)
 }
 
+func (ta *testActor) Log(entry reporting.LogEntry) error {
+	if ta.reporter == nil || ta.reporter.GetReporter() == nil {
+		return fmt.Errorf("actor %q has no configured LogSink", ta.name)
+	}
+
+	ta.reporter.GetReporter().OnLog(entry)
+	return nil
+}
+
 // AttemptsTo executes activities and automatically handles errors through TestContext.
 // No manual error checking is required: failures are recorded on TestContext, and
 // FailFast activities also call FailNow.

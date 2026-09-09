@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,9 +31,10 @@ type runningTest struct {
 }
 
 type openStep struct {
-	name     string
-	startMs  int64
-	children []allureStepResult
+	name        string
+	startMs     int64
+	children    []allureStepResult
+	attachments []allureAttachment
 }
 
 type allureResult struct {
@@ -83,6 +85,24 @@ func (ar *AllureReporter) OnTestStart(testName string) {
 	}
 }
 
+// OnLog attaches the resolved log values to the currently open Log step.
+func (ar *AllureReporter) OnLog(entry reporting.LogEntry) {
+	ar.mutex.Lock()
+	defer ar.mutex.Unlock()
+
+	if ar.current == nil || len(ar.current.openSteps) == 0 {
+		return
+	}
+
+	attachments := ar.persistAttachments([]reporting.Attachment{{
+		Name:        "log",
+		ContentType: "text/plain",
+		Content:     []byte(strings.Join(entry.Values, " ")),
+	}})
+	index := len(ar.current.openSteps) - 1
+	ar.current.openSteps[index].attachments = append(ar.current.openSteps[index].attachments, attachments...)
+}
+
 func (ar *AllureReporter) OnStepStart(stepDescription string) {
 	ar.mutex.Lock()
 	defer ar.mutex.Unlock()
@@ -126,7 +146,7 @@ func (ar *AllureReporter) OnStepFinish(stepResult reporting.TestResult) {
 		Start:       startMs,
 		Stop:        stopMs,
 		Steps:       finished.children,
-		Attachments: attachments,
+		Attachments: append(finished.attachments, attachments...),
 	}
 
 	if len(ar.current.openSteps) == 0 {

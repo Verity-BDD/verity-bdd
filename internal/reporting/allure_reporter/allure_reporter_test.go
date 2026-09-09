@@ -40,6 +40,30 @@ func (sr *stubResult) Attachments() []reporting.Attachment {
 	return sr.attachments
 }
 
+func TestAllureReporterAttachesLogToNestedOpenStep(t *testing.T) {
+	t.Parallel()
+
+	resultsDir := t.TempDir()
+	reporter := NewAllureReporterWithDir(resultsDir)
+	reporter.OnTestStart("LogTest")
+	reporter.OnStepStart("Sam checks out")
+	reporter.OnStepStart("Sam logs")
+	reporter.OnLog(reporting.LogEntry{ActorName: "Sam", Values: []string{"Current page", "Checkout"}})
+	reporter.OnStepFinish(&stubResult{name: "Sam logs", status: reporting.StatusPassed, duration: 0.01})
+	reporter.OnStepFinish(&stubResult{name: "Sam checks out", status: reporting.StatusPassed, duration: 0.02})
+	reporter.OnTestFinish(&stubResult{name: "LogTest", status: reporting.StatusPassed, duration: 0.03})
+
+	result := readSingleResultFile(t, resultsDir)
+	logStep := result.Steps[0].Steps[0]
+	require.Equal(t, "Sam logs", logStep.Name)
+	require.Len(t, logStep.Attachments, 1)
+	require.Equal(t, "log", logStep.Attachments[0].Name)
+	require.Equal(t, "text/plain", logStep.Attachments[0].Type)
+	payload, err := os.ReadFile(filepath.Join(resultsDir, logStep.Attachments[0].Source))
+	require.NoError(t, err)
+	require.Equal(t, "Current page Checkout", string(payload))
+}
+
 func TestAllureReporter_WritesResultFile(t *testing.T) {
 	t.Parallel()
 

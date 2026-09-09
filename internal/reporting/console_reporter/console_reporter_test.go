@@ -38,6 +38,19 @@ func (sr *stubResult) Attachments() []reporting.Attachment {
 	return sr.attachments
 }
 
+func TestConsoleReporterRendersLogAtCurrentNestingLevel(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	reporter := NewConsoleReporter()
+	reporter.SetOutput(&buf)
+
+	reporter.OnStepStart("Sam creates checkout")
+	reporter.OnStepStart("Sam logs")
+	reporter.OnLog(reporting.LogEntry{ActorName: "Sam", Values: []string{"Current page", "Checkout"}})
+
+	require.Equal(t, "    ℹ️ Sam: Current page Checkout\n", buf.String())
+}
+
 func TestConsoleReporterPrintsAttachmentsOnFailure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
