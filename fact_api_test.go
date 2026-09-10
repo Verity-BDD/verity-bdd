@@ -15,7 +15,7 @@ type customerAccountFact struct {
 	teardownActor verity.Actor
 }
 
-func (f *customerAccountFact) Description() string { return "has a customer account" }
+func (f *customerAccountFact) Description() string { return "customer account" }
 
 func (f *customerAccountFact) Setup(_ context.Context, actor verity.Actor) error {
 	f.setupActor = actor
@@ -57,14 +57,14 @@ func TestActorHasSetsUpFactSynchronously(t *testing.T) {
 	actor := test.ActorCalled("Sam")
 	setupCalled := false
 
-	fact := verity.FactAbout("has a customer account", func(gotCtx context.Context, gotActor verity.Actor) error {
+	fact := verity.FactAbout("customer account", func(gotCtx context.Context, gotActor verity.Actor) error {
 		require.Same(t, ctx, gotCtx)
 		require.Same(t, actor, gotActor)
 		setupCalled = true
 		return nil
 	})
 
-	require.Equal(t, "has a customer account", fact.Description())
+	require.Equal(t, "customer account", fact.Description())
 	actor.Has(fact)
 	require.True(t, setupCalled)
 }

@@ -284,6 +284,8 @@ type Actor interface {
 // Fact declares state that is true about an actor for the current test.
 // Setup establishes that state and Teardown releases it at test shutdown.
 type Fact interface {
+	// Description returns a noun phrase describing actor state, without "has".
+	// Actor.Has and presentation own the verb.
 	Description() string
 	Setup(ctx context.Context, actor Actor) error
 	Teardown(ctx context.Context, actor Actor) error

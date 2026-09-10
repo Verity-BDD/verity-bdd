@@ -12,7 +12,7 @@ type accountFact struct {
 	accounts map[string]string
 }
 
-func (f *accountFact) Description() string { return "has account " + f.number }
+func (f *accountFact) Description() string { return "account " + f.number }
 
 func (f *accountFact) Setup(_ context.Context, actor verity.Actor) error {
 	f.accounts[f.number] = actor.Name()
@@ -48,7 +48,7 @@ func TestActorFacts(t *testing.T) {
 	anAccount := accountFacts{accounts: accounts}
 
 	sam.Has(
-		verity.FactAbout("has a ready profile", func(_ context.Context, _ verity.Actor) error {
+		verity.FactAbout("ready profile", func(_ context.Context, _ verity.Actor) error {
 			profileReady = true
 			return nil
 		}),

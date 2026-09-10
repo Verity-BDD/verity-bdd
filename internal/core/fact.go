@@ -24,6 +24,7 @@ func (f *fact) Teardown(ctx context.Context, actor Actor) error {
 }
 
 // FactAbout creates a setup-only fact about an actor. Its teardown is a no-op.
+// The description is a noun phrase without "has"; Actor.Has and presentation own the verb.
 // It panics if setup is nil.
 func FactAbout(description string, setup func(context.Context, Actor) error) Fact {
 	if setup == nil {

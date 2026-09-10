@@ -375,6 +375,7 @@ func Do(description string, perform func(context.Context, Actor) error) Interact
 }
 
 // FactAbout creates a setup-only fact about an actor. Its teardown is a no-op.
+// The description is a noun phrase without "has"; Actor.Has and presentation own the verb.
 // It panics if setup is nil.
 func FactAbout(description string, setup func(context.Context, Actor) error) Fact {
 	return internalcore.FactAbout(description, setup)

@@ -306,12 +306,12 @@ func TestActorHasStopsAfterSetupError(t *testing.T) {
 	var setupOrder []string
 	var teardownOrder []string
 
-	testContext.EXPECT().Errorf("Fact %q setup failed for actor %q: %v", "has a savings account", "Sam", setupErr)
+	testContext.EXPECT().Errorf("Fact %q setup failed for actor %q: %v", "savings account", "Sam", setupErr)
 	testContext.EXPECT().FailNow()
 
 	actor.Has(
 		&callbackFact{
-			description: "is registered",
+			description: "registered account",
 			setup: func(context.Context, core.Actor) error {
 				setupOrder = append(setupOrder, "A")
 				return nil
@@ -322,7 +322,7 @@ func TestActorHasStopsAfterSetupError(t *testing.T) {
 			},
 		},
 		&callbackFact{
-			description: "has a savings account",
+			description: "savings account",
 			setup: func(context.Context, core.Actor) error {
 				setupOrder = append(setupOrder, "B")
 				return setupErr
@@ -333,7 +333,7 @@ func TestActorHasStopsAfterSetupError(t *testing.T) {
 			},
 		},
 		&callbackFact{
-			description: "has a credit card",
+			description: "credit card",
 			setup: func(context.Context, core.Actor) error {
 				setupOrder = append(setupOrder, "C")
 				return nil
