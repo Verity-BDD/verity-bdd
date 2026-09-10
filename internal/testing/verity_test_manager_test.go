@@ -3,8 +3,10 @@ package testing
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -437,6 +439,180 @@ func TestVerityTestActorCalled_PanicsAfterShutdown(t *testing.T) {
 	})
 }
 
+func TestActorHasPanicsAfterShutdownWithoutRunningSetup(t *testing.T) {
+	t.Parallel()
+
+	test := NewVerityTest(t, Scene{Reporter: &countingReporter{}})
+	actor := test.ActorCalled("Sam")
+	setupCalls := 0
+	test.Shutdown()
+
+	require.PanicsWithValue(t, "verity: Actor.Has called after Shutdown", func() {
+		actor.Has(core.FactAbout("late fact", func(context.Context, core.Actor) error {
+			setupCalls++
+			return nil
+		}))
+	})
+	require.Zero(t, setupCalls)
+	require.Nil(t, actor.(*testActor).facts)
+}
+
+func TestConcurrentActorHasRegistrationsTearDownExactlyOnce(t *testing.T) {
+	t.Parallel()
+
+	const registrations = 64
+	test := NewVerityTest(t, Scene{Reporter: &countingReporter{}})
+	actor := test.ActorCalled("Sam")
+	var setupCalls atomic.Int64
+	var teardownCalls atomic.Int64
+	start := make(chan struct{})
+	var ready sync.WaitGroup
+	var calls sync.WaitGroup
+	ready.Add(registrations)
+	calls.Add(registrations)
+
+	for range registrations {
+		go func() {
+			defer calls.Done()
+			ready.Done()
+			<-start
+			actor.Has(&callbackFact{
+				description: "concurrent fact",
+				setup: func(context.Context, core.Actor) error {
+					setupCalls.Add(1)
+					return nil
+				},
+				teardown: func(context.Context, core.Actor) error {
+					teardownCalls.Add(1)
+					return nil
+				},
+			})
+		}()
+	}
+
+	ready.Wait()
+	close(start)
+	calls.Wait()
+	test.Shutdown()
+
+	require.Equal(t, int64(registrations), setupCalls.Load())
+	require.Equal(t, int64(registrations), teardownCalls.Load())
+}
+
+func TestActorHasConcurrentWithShutdownDoesNotLeakFact(t *testing.T) {
+	t.Parallel()
+
+	const attempts = 256
+	for range attempts {
+		test := NewVerityTest(t, Scene{Reporter: &countingReporter{}})
+		actor := test.ActorCalled("Sam")
+		var setupCalls atomic.Int64
+		var teardownCalls atomic.Int64
+		start := make(chan struct{})
+		var ready sync.WaitGroup
+		ready.Add(2)
+		hasPanic := make(chan any, 1)
+		shutdownDone := make(chan struct{})
+
+		go func() {
+			defer func() { hasPanic <- recover() }()
+			ready.Done()
+			<-start
+			actor.Has(&callbackFact{
+				description: "racing fact",
+				setup: func(context.Context, core.Actor) error {
+					setupCalls.Add(1)
+					return nil
+				},
+				teardown: func(context.Context, core.Actor) error {
+					teardownCalls.Add(1)
+					return nil
+				},
+			})
+		}()
+		go func() {
+			ready.Done()
+			<-start
+			test.Shutdown()
+			close(shutdownDone)
+		}()
+
+		ready.Wait()
+		close(start)
+		panicValue := <-hasPanic
+		<-shutdownDone
+
+		if panicValue == nil {
+			require.Equal(t, int64(1), setupCalls.Load())
+			require.Equal(t, int64(1), teardownCalls.Load())
+		} else {
+			require.Equal(t, "verity: Actor.Has called after Shutdown", panicValue)
+			require.Zero(t, setupCalls.Load())
+			require.Zero(t, teardownCalls.Load())
+		}
+		require.Nil(t, actor.(*testActor).facts)
+	}
+}
+
+func TestActorHasSetupCallingActorsConcurrentWithShutdownCompletes(t *testing.T) {
+	t.Parallel()
+
+	reporter := &countingReporter{}
+	test := NewVerityTest(t, Scene{Reporter: reporter})
+	concrete := test.(*verityTest)
+	actor := test.ActorCalled("Sam")
+	setupEntered := make(chan struct{})
+	callActors := make(chan struct{})
+	hasDone := make(chan any, 1)
+	shutdownDone := make(chan struct{})
+	var setupCalls atomic.Int64
+	var teardownCalls atomic.Int64
+
+	fact := &callbackFact{
+		description: "coordinated fact",
+		setup: func(context.Context, core.Actor) error {
+			setupCalls.Add(1)
+			close(setupEntered)
+			<-callActors
+			test.Actors()
+			return nil
+		},
+		teardown: func(context.Context, core.Actor) error {
+			teardownCalls.Add(1)
+			return nil
+		},
+	}
+
+	go func() {
+		defer func() { hasDone <- recover() }()
+		actor.Has(fact)
+	}()
+	<-setupEntered
+
+	go func() {
+		test.Shutdown()
+		close(shutdownDone)
+	}()
+
+	for concrete.mutex.TryLock() {
+		shutdownStarted := concrete.shutdown
+		concrete.mutex.Unlock()
+		if shutdownStarted {
+			break
+		}
+		runtime.Gosched()
+	}
+	close(callActors)
+
+	require.Nil(t, <-hasDone)
+	<-shutdownDone
+	require.Equal(t, int64(1), setupCalls.Load())
+	require.Equal(t, int64(1), teardownCalls.Load())
+	require.Nil(t, actor.(*testActor).facts)
+	require.Empty(t, test.Actors())
+	require.Equal(t, int64(1), reporter.finishCount.Load())
+}
+
 func TestVerityTestActorCalled_ConcurrentWithShutdownLinearizesAtTerminalState(t *testing.T) {
 	t.Parallel()
 	const attempts = 256
@@ -611,6 +787,87 @@ func TestVerityTestActors_ConcurrentSnapshotsAreConsistent(t *testing.T) {
 	for i, actor := range actors {
 		require.Equal(t, fmt.Sprintf("Actor-%02d", i), actor.Name())
 	}
+}
+
+func TestFactTeardownErrorsContinueAndFailReportedResult(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	testContext := mocks.NewMockTestContext(ctrl)
+	reporter := reportingMocks.NewMockReporter(ctrl)
+	firstErr := errors.New("first teardown failed")
+	lastErr := errors.New("last teardown failed")
+	failed := false
+	var teardownOrder []string
+
+	testContext.EXPECT().Helper()
+	testContext.EXPECT().Name().Return("FactTeardownErrors")
+	testContext.EXPECT().Cleanup(gomock.Any())
+	gomock.InOrder(
+		testContext.EXPECT().Errorf("Fact %q teardown failed for actor %q: %v", "last", "Sam", lastErr).Do(func(string, ...any) { failed = true }),
+		testContext.EXPECT().Errorf("Fact %q teardown failed for actor %q: %v", "first", "Sam", firstErr).Do(func(string, ...any) { failed = true }),
+		testContext.EXPECT().Failed().DoAndReturn(func() bool { return failed }),
+	)
+	reporter.EXPECT().OnTestStart("FactTeardownErrors")
+	reporter.EXPECT().OnTestFinish(gomock.Any()).Do(func(result reporting.TestResult) {
+		require.Equal(t, reporting.StatusFailed, result.Status())
+		require.EqualError(t, result.Error(), "test failed")
+	})
+
+	test := NewVerityTest(testContext, Scene{Reporter: reporter})
+	actor := test.ActorCalled("Sam")
+	fact := func(name string, teardownErr error) core.Fact {
+		return &callbackFact{
+			description: name,
+			setup:       func(context.Context, core.Actor) error { return nil },
+			teardown: func(context.Context, core.Actor) error {
+				teardownOrder = append(teardownOrder, name)
+				return teardownErr
+			},
+		}
+	}
+	actor.Has(fact("first", firstErr), fact("middle", nil), fact("last", lastErr))
+
+	test.Shutdown()
+
+	require.Equal(t, []string{"last", "middle", "first"}, teardownOrder)
+}
+
+func TestActorFactsCleanupUsesLIFOAndRunsExactlyOnce(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	testContext := mocks.NewMockTestContext(ctrl)
+	reporter := &countingReporter{}
+	var cleanup func()
+
+	testContext.EXPECT().Helper().Times(3)
+	testContext.EXPECT().Name().Return("FactsCleanup")
+	testContext.EXPECT().Cleanup(gomock.Any()).Do(func(callback func()) { cleanup = callback })
+	testContext.EXPECT().Failed().Return(false)
+
+	test := NewVerityTest(testContext, Scene{Reporter: reporter})
+	actor := test.ActorCalled("Sam")
+	var teardownOrder []string
+	fact := func(name string) core.Fact {
+		return &callbackFact{
+			description: name,
+			setup:       func(context.Context, core.Actor) error { return nil },
+			teardown: func(context.Context, core.Actor) error {
+				teardownOrder = append(teardownOrder, name)
+				return nil
+			},
+		}
+	}
+	shared := fact("shared")
+	actor.Has(fact("first"), shared, shared)
+
+	cleanup()
+	test.Shutdown()
+	cleanup()
+
+	require.Equal(t, []string{"shared", "shared", "first"}, teardownOrder)
+	require.Equal(t, int64(1), reporter.finishCount.Load())
 }
 
 func TestVerityTestActors_ConcurrentWithShutdownReturnsAtomicSnapshots(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 
 var (
 	_ func(string, func(context.Context, verity.Actor) error) verity.Interaction      = verity.Do
+	_ func(string, func(context.Context, verity.Actor) error) verity.Fact             = verity.FactAbout
 	_ func(string, ...verity.Activity) verity.Task                                    = verity.TaskWhere
 	_ func() verity.FailureMode                                                       = verity.Critical
 	_ func() verity.FailureMode                                                       = verity.NonCritical

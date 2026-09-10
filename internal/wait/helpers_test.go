@@ -16,4 +16,5 @@ func (s *stubActor) WhoCan(_ ...abilities.Ability) core.Actor { return s }
 func (s *stubActor) AbilityTo(_ abilities.Ability) (abilities.Ability, error) {
 	return nil, errors.New("no ability")
 }
+func (s *stubActor) Has(_ ...core.Fact)            {}
 func (s *stubActor) AttemptsTo(_ ...core.Activity) {}

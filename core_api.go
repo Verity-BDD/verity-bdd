@@ -57,6 +57,12 @@ type Ability = internalabilities.Ability
 //	Activities are executed sequentially unless explicitly designed for concurrency.
 type Actor = internalcore.Actor
 
+// Fact declares state that is true about an actor for the current test.
+// Setup establishes that state and Teardown releases it at test shutdown.
+// Fact callbacks must not re-enter the owning VerityTest lifecycle, for example
+// by calling Shutdown.
+type Fact = internalcore.Fact
+
 // Activity represents an action that an actor can perform.
 // Activities are the building blocks of test scenarios in the Screenplay Pattern.
 // They define what actors do rather than how they interact with specific interfaces.
@@ -366,6 +372,13 @@ const (
 //	)
 func Do(description string, perform func(context.Context, Actor) error) Interaction {
 	return internalcore.Do(description, perform)
+}
+
+// FactAbout creates a setup-only fact about an actor. Its teardown is a no-op.
+// The description is a noun phrase without "has"; Actor.Has and presentation own the verb.
+// It panics if setup is nil.
+func FactAbout(description string, setup func(context.Context, Actor) error) Fact {
+	return internalcore.FactAbout(description, setup)
 }
 
 // TaskWhere creates a new task with the given description and activities.

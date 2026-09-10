@@ -2,6 +2,8 @@ package testing
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"testing"
 
 	"go.uber.org/mock/gomock"
@@ -24,6 +26,22 @@ type ifaceAbility interface {
 type ifaceImpl struct{ id string }
 
 func (i *ifaceImpl) Foo() string { return i.id }
+
+type callbackFact struct {
+	description string
+	setup       func(context.Context, core.Actor) error
+	teardown    func(context.Context, core.Actor) error
+}
+
+func (f *callbackFact) Description() string { return f.description }
+
+func (f *callbackFact) Setup(ctx context.Context, actor core.Actor) error {
+	return f.setup(ctx, actor)
+}
+
+func (f *callbackFact) Teardown(ctx context.Context, actor core.Actor) error {
+	return f.teardown(ctx, actor)
+}
 
 func TestTestActorAttemptsToWithReporting(t *testing.T) {
 	t.Parallel()
@@ -271,6 +289,68 @@ func TestAbilityOfSupportsInterfaceAbility(t *testing.T) {
 
 	if ability.Foo() != "ok" {
 		t.Fatalf("expected Foo to return ok, got %s", ability.Foo())
+	}
+}
+
+func TestActorHasStopsAfterSetupError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	testContext := testingMocks.NewMockTestContext(ctrl)
+	actor := &testActor{
+		name:        "Sam",
+		testContext: testContext,
+		ctx:         context.Background(),
+	}
+	setupErr := errors.New("account service unavailable")
+	var setupOrder []string
+	var teardownOrder []string
+
+	testContext.EXPECT().Errorf("Fact %q setup failed for actor %q: %v", "savings account", "Sam", setupErr)
+	testContext.EXPECT().FailNow()
+
+	actor.Has(
+		&callbackFact{
+			description: "registered account",
+			setup: func(context.Context, core.Actor) error {
+				setupOrder = append(setupOrder, "A")
+				return nil
+			},
+			teardown: func(context.Context, core.Actor) error {
+				teardownOrder = append(teardownOrder, "A")
+				return nil
+			},
+		},
+		&callbackFact{
+			description: "savings account",
+			setup: func(context.Context, core.Actor) error {
+				setupOrder = append(setupOrder, "B")
+				return setupErr
+			},
+			teardown: func(context.Context, core.Actor) error {
+				teardownOrder = append(teardownOrder, "B")
+				return nil
+			},
+		},
+		&callbackFact{
+			description: "credit card",
+			setup: func(context.Context, core.Actor) error {
+				setupOrder = append(setupOrder, "C")
+				return nil
+			},
+			teardown: func(context.Context, core.Actor) error {
+				teardownOrder = append(teardownOrder, "C")
+				return nil
+			},
+		},
+	)
+	actor.teardownFacts()
+
+	if got, want := setupOrder, []string{"A", "B"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("setup order = %v, want %v", got, want)
+	}
+	if got, want := teardownOrder, []string{"A"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("teardown order = %v, want %v", got, want)
 	}
 }
 

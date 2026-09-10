@@ -43,6 +43,7 @@ func (a *stubActor) AbilityTo(target abilities.Ability) (abilities.Ability, erro
 	return nil, fmt.Errorf("actor '%s' can't %s. Did you give them the ability?", a.name, core.AbilityName(target))
 }
 
+func (a *stubActor) Has(_ ...core.Fact)                     {}
 func (a *stubActor) AttemptsTo(activities ...core.Activity) {}
 
 func TestTakeNoteStoresValue(t *testing.T) {
