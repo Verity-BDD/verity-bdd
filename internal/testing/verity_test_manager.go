@@ -161,6 +161,7 @@ type verityTest struct {
 	ctx                     context.Context
 	actors                  map[string]core.Actor
 	mutex                   sync.RWMutex
+	shutdownMutex           sync.Mutex
 	adapter                 *reporting.TestRunnerAdapter
 	startTime               time.Time
 	testName                string
@@ -298,11 +299,21 @@ func (st *verityTest) GetReporterAdapter() *reporting.TestRunnerAdapter {
 
 // Shutdown cleans up resources
 func (st *verityTest) Shutdown() {
-	st.mutex.Lock()
-	defer st.mutex.Unlock()
+	st.shutdownMutex.Lock()
+	defer st.shutdownMutex.Unlock()
 
+	st.mutex.Lock()
 	if st.shutdown {
+		st.mutex.Unlock()
 		return
+	}
+	actors := st.actors
+	st.actors = nil
+	st.shutdown = true
+	st.mutex.Unlock()
+
+	for _, actor := range actors {
+		actor.(*testActor).teardownFacts()
 	}
 
 	// Create test result
@@ -316,7 +327,7 @@ func (st *verityTest) Shutdown() {
 		testErr = fmt.Errorf("test failed")
 	}
 
-	noteDump := st.collectNotes()
+	noteDump := collectNotes(actors)
 	if noteDump != nil {
 		content, err := json.Marshal(noteDump)
 		if err == nil {
@@ -341,22 +352,19 @@ func (st *verityTest) Shutdown() {
 		st.adapter.GetReporter().OnTestFinish(result)
 	}
 
-	// Release actor references and make the lifecycle terminal.
-	st.actors = nil
-	st.shutdown = true
 }
 
 type notesCollector interface {
 	All() map[string]any
 }
 
-func (st *verityTest) collectNotes() map[string]map[string]any {
-	if len(st.actors) == 0 {
+func collectNotes(actors map[string]core.Actor) map[string]map[string]any {
+	if len(actors) == 0 {
 		return nil
 	}
 
 	collected := make(map[string]map[string]any)
-	for name, actor := range st.actors {
+	for name, actor := range actors {
 		internalActor, ok := actor.(*testActor)
 		if !ok {
 			continue

@@ -20,6 +20,7 @@ func (a *testActor) WhoCan(_ ...abilities.Ability) core.Actor { return a }
 func (a *testActor) AbilityTo(_ abilities.Ability) (abilities.Ability, error) {
 	return nil, errors.New("no ability")
 }
+func (a *testActor) Has(_ ...core.Fact)            {}
 func (a *testActor) AttemptsTo(_ ...core.Activity) {}
 
 type staticQuestion[T any] struct{ value T }

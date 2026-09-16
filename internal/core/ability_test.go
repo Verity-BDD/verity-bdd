@@ -28,6 +28,7 @@ func (s *stubActor) AbilityTo(_ abilities.Ability) (abilities.Ability, error) {
 	}
 	return s.abilityToResp, nil
 }
+func (s *stubActor) Has(_ ...Fact)            {}
 func (s *stubActor) AttemptsTo(_ ...Activity) {}
 
 func TestAbilityNameStripsPointer(t *testing.T) {
