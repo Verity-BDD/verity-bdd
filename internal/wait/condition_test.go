@@ -154,6 +154,87 @@ func TestUntil_TimeoutWithPersistentQuestionError(t *testing.T) {
 	}
 }
 
+func TestUntil_DeadlineDuringPollPreservesPreviousExpectationError(t *testing.T) {
+	calls := 0
+	q := core.QuestionAbout("deadline-aware question", func(ctx context.Context, _ core.Actor) (int, error) {
+		calls++
+		if calls == 1 {
+			return 0, nil
+		}
+		<-ctx.Done()
+		return 0, ctx.Err()
+	})
+
+	err := wait.Until(q, expectations.Equals(1)).
+		For(50*time.Millisecond).
+		CheckingEvery(time.Millisecond).
+		PerformAs(context.Background(), &stubActor{})
+
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+	if !strings.Contains(err.Error(), "expected 1, but got 0") {
+		t.Fatalf("expected prior expectation error, got: %v", err)
+	}
+	if strings.Contains(err.Error(), "context deadline exceeded") {
+		t.Fatalf("expected prior expectation error instead of deadline artifact, got: %v", err)
+	}
+}
+
+func TestUntil_DeadlineDuringFirstPollReportsDeadlineError(t *testing.T) {
+	q := core.QuestionAbout("deadline-aware question", func(ctx context.Context, _ core.Actor) (int, error) {
+		<-ctx.Done()
+		return 0, ctx.Err()
+	})
+
+	err := wait.Until(q, expectations.Equals(1)).
+		For(50*time.Millisecond).
+		PerformAs(context.Background(), &stubActor{})
+
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+	if !strings.Contains(err.Error(), "context deadline exceeded") {
+		t.Fatalf("expected deadline error with no prior poll failure, got: %v", err)
+	}
+}
+
+func TestUntil_CallerCancellationDuringPollDoesNotPreservePreviousExpectationError(t *testing.T) {
+	secondPollStarted := make(chan struct{})
+	calls := 0
+	q := core.QuestionAbout("cancel-aware question", func(ctx context.Context, _ core.Actor) (int, error) {
+		calls++
+		if calls == 1 {
+			return 0, nil
+		}
+		close(secondPollStarted)
+		<-ctx.Done()
+		return 0, ctx.Err()
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		<-secondPollStarted
+		cancel()
+	}()
+
+	err := wait.Until(q, expectations.Equals(1)).
+		For(time.Second).
+		CheckingEvery(time.Millisecond).
+		PerformAs(ctx, &stubActor{})
+
+	if err == nil {
+		t.Fatal("expected cancellation error, got nil")
+	}
+	if !strings.Contains(err.Error(), "context canceled") {
+		t.Fatalf("expected caller cancellation error, got: %v", err)
+	}
+	if strings.Contains(err.Error(), "expected 1, but got 0") {
+		t.Fatalf("expected caller cancellation to replace prior expectation error, got: %v", err)
+	}
+}
+
 func TestUntil_ExternalContextCancellation(t *testing.T) {
 	t.Parallel()
 	polled := make(chan struct{})

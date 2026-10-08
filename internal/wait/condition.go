@@ -58,6 +58,7 @@ func (c *ConditionActivity[T]) FailureMode() core.FailureMode {
 // then re-polls after each interval until expectation is met or timeout/context expires.
 // A pre-canceled ctx will still execute one poll before the cancellation is detected.
 func (c *ConditionActivity[T]) PerformAs(ctx context.Context, actor core.Actor) error {
+	parentCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -68,7 +69,13 @@ func (c *ConditionActivity[T]) PerformAs(ctx context.Context, actor core.Actor) 
 	for {
 		actual, err := c.question.AnsweredBy(ctx, actor)
 		if err != nil {
-			lastErr = err
+			// Preserve a completed poll's error when only this wait's deadline canceled the current poll.
+			if !(errors.Is(err, context.DeadlineExceeded) &&
+				errors.Is(ctx.Err(), context.DeadlineExceeded) &&
+				parentCtx.Err() == nil &&
+				lastErr != nil) {
+				lastErr = err
+			}
 		} else if evalErr := c.expectation.Evaluate(ctx, actor, actual); evalErr != nil {
 			lastErr = evalErr
 		} else {
