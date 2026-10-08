@@ -155,6 +155,8 @@ func TestUntil_TimeoutWithPersistentQuestionError(t *testing.T) {
 }
 
 func TestUntil_DeadlineDuringPollPreservesPreviousExpectationError(t *testing.T) {
+	t.Parallel()
+
 	calls := 0
 	q := core.QuestionAbout("deadline-aware question", func(ctx context.Context, _ core.Actor) (int, error) {
 		calls++
@@ -182,6 +184,8 @@ func TestUntil_DeadlineDuringPollPreservesPreviousExpectationError(t *testing.T)
 }
 
 func TestUntil_DeadlineDuringFirstPollReportsDeadlineError(t *testing.T) {
+	t.Parallel()
+
 	q := core.QuestionAbout("deadline-aware question", func(ctx context.Context, _ core.Actor) (int, error) {
 		<-ctx.Done()
 		return 0, ctx.Err()
@@ -200,6 +204,8 @@ func TestUntil_DeadlineDuringFirstPollReportsDeadlineError(t *testing.T) {
 }
 
 func TestUntil_CallerCancellationDuringPollDoesNotPreservePreviousExpectationError(t *testing.T) {
+	t.Parallel()
+
 	secondPollStarted := make(chan struct{})
 	calls := 0
 	q := core.QuestionAbout("cancel-aware question", func(ctx context.Context, _ core.Actor) (int, error) {
