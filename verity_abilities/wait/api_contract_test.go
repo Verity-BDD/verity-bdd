@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	verity "github.com/verity-bdd/verity-bdd"
 	answerable "github.com/verity-bdd/verity-bdd/verity_answerable"
 	ve "github.com/verity-bdd/verity-bdd/verity_expectations"
 
@@ -32,6 +33,15 @@ func TestWaitAPIContractChainingCompiles(t *testing.T) {
 	t.Parallel()
 	q := answerable.ValueOf("ready")
 	_ = wait.Until(q, ve.Equals("ready")).
+		For(30 * time.Second).
+		CheckingEvery(1 * time.Second)
+}
+
+func TestWaitFailureModeConfigurationCompiles(t *testing.T) {
+	t.Parallel()
+	q := answerable.ValueOf("ready")
+	_ = wait.Until(q, ve.Equals("ready")).
+		WithFailureMode(verity.NonCritical()).
 		For(30 * time.Second).
 		CheckingEvery(1 * time.Second)
 }

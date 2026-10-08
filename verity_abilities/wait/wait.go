@@ -19,10 +19,14 @@ type Waiter[T any] interface {
 	// CheckingEvery sets how frequently the condition is re-evaluated.
 	// Defaults to 500ms.
 	CheckingEvery(time.Duration) Waiter[T]
+	// WithFailureMode configures how the actor handles a failed wait.
+	// Defaults to FailFast.
+	WithFailureMode(verity.FailureMode) Waiter[T]
 }
 
 type waiterAdapter[T any] struct {
-	inner *internalwait.ConditionActivity[T]
+	inner       *internalwait.ConditionActivity[T]
+	failureMode verity.FailureMode
 }
 
 func (a *waiterAdapter[T]) For(d time.Duration) Waiter[T] {
@@ -35,6 +39,11 @@ func (a *waiterAdapter[T]) CheckingEvery(d time.Duration) Waiter[T] {
 	return a
 }
 
+func (a *waiterAdapter[T]) WithFailureMode(mode verity.FailureMode) Waiter[T] {
+	a.failureMode = mode
+	return a
+}
+
 func (a *waiterAdapter[T]) PerformAs(ctx context.Context, actor verity.Actor) error {
 	return a.inner.PerformAs(ctx, actor)
 }
@@ -44,7 +53,7 @@ func (a *waiterAdapter[T]) Description() string {
 }
 
 func (a *waiterAdapter[T]) FailureMode() verity.FailureMode {
-	return a.inner.FailureMode()
+	return a.failureMode
 }
 
 // ChannelReceiver waits for a value to arrive on a channel or for timeout.
