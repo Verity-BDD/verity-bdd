@@ -17,6 +17,15 @@ type TestResult = internalreporting.TestResult
 // Content contains the payload bytes and ContentType identifies their media type.
 type Attachment = internalreporting.Attachment
 
+// Link identifies a requirement, ticket, or other related resource.
+type Link = internalreporting.Link
+
+// TestMetadata carries optional description and related links for a test result.
+type TestMetadata = internalreporting.TestMetadata
+
+// TestMetadataProvider is implemented by test results that carry metadata.
+type TestMetadataProvider = internalreporting.TestMetadataProvider
+
 // Status represents the status of a test or step.
 type Status = internalreporting.Status
 

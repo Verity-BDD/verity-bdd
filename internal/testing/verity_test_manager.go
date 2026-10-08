@@ -29,6 +29,8 @@ type Scene struct {
 	Context          context.Context
 	Reporter         reporting.Reporter
 	DefaultAbilities []DefaultAbilityFactory
+	Description      string
+	Links            []reporting.Link
 }
 
 // VerityTest manages the lifecycle of test actors and provides the TestContext API.
@@ -128,6 +130,7 @@ type testResult struct {
 	duration    time.Duration
 	err         error
 	attachments []reporting.Attachment
+	metadata    reporting.TestMetadata
 }
 
 // Name returns the test name
@@ -155,6 +158,13 @@ func (tr *testResult) Attachments() []reporting.Attachment {
 	return tr.attachments
 }
 
+// Metadata returns a copy of the optional test metadata.
+func (tr *testResult) Metadata() reporting.TestMetadata {
+	metadata := tr.metadata
+	metadata.Links = append([]reporting.Link(nil), tr.metadata.Links...)
+	return metadata
+}
+
 // verityTest implements VerityTest
 type verityTest struct {
 	testCtx                 TestContext
@@ -167,6 +177,7 @@ type verityTest struct {
 	testName                string
 	shutdown                bool
 	defaultAbilityFactories []DefaultAbilityFactory
+	metadata                reporting.TestMetadata
 }
 
 // NewVerityTest creates a new VerityTest instance
@@ -185,6 +196,8 @@ func NewVerityTest(t TestContext, scene Scene) VerityTest {
 		resolved.Reporter = scene.Reporter
 	}
 	resolved.DefaultAbilities = append(resolved.DefaultAbilities, scene.DefaultAbilities...)
+	resolved.Description = scene.Description
+	resolved.Links = append(resolved.Links, scene.Links...)
 
 	var adapter *reporting.TestRunnerAdapter
 	if resolved.Reporter != nil {
@@ -206,6 +219,10 @@ func NewVerityTest(t TestContext, scene Scene) VerityTest {
 		startTime:               time.Now(),
 		testName:                testName,
 		defaultAbilityFactories: append([]DefaultAbilityFactory(nil), resolved.DefaultAbilities...),
+		metadata: reporting.TestMetadata{
+			Description: resolved.Description,
+			Links:       append([]reporting.Link(nil), resolved.Links...),
+		},
 	}
 
 	t.Cleanup(func() { t.Helper(); st.Shutdown() })
@@ -345,6 +362,7 @@ func (st *verityTest) Shutdown() {
 		duration:    duration,
 		err:         testErr,
 		attachments: attachments,
+		metadata:    st.metadata,
 	}
 
 	// Notify reporter that test is finished

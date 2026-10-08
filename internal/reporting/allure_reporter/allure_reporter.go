@@ -38,12 +38,20 @@ type openStep struct {
 type allureResult struct {
 	UUID          string             `json:"uuid"`
 	Name          string             `json:"name"`
+	Description   string             `json:"description,omitempty"`
 	Status        string             `json:"status"`
 	StatusDetails *allureStatus      `json:"statusDetails,omitempty"`
 	Start         int64              `json:"start"`
 	Stop          int64              `json:"stop"`
 	Steps         []allureStepResult `json:"steps,omitempty"`
 	Attachments   []allureAttachment `json:"attachments,omitempty"`
+	Links         []allureLink       `json:"links,omitempty"`
+}
+
+type allureLink struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	Type string `json:"type"`
 }
 
 type allureStatus struct {
@@ -159,15 +167,22 @@ func (ar *AllureReporter) OnTestFinish(result reporting.TestResult) {
 		statusDetails = &allureStatus{Message: result.Error().Error()}
 	}
 
+	metadata := reporting.TestMetadata{}
+	if provider, ok := result.(reporting.TestMetadataProvider); ok {
+		metadata = provider.Metadata()
+	}
+
 	out := allureResult{
 		UUID:          ar.current.uuid,
 		Name:          ar.current.name,
+		Description:   metadata.Description,
 		Status:        mapStatus(result.Status()),
 		StatusDetails: statusDetails,
 		Start:         ar.current.startMs,
 		Stop:          endTime(ar.current.startMs, result.Duration()),
 		Steps:         ar.current.steps,
 		Attachments:   ar.persistAttachments(result.Attachments()),
+		Links:         allureLinks(metadata.Links),
 	}
 
 	_ = os.MkdirAll(ar.resultsDir, 0o750)
@@ -177,6 +192,19 @@ func (ar *AllureReporter) OnTestFinish(result reporting.TestResult) {
 	}
 
 	ar.current = nil
+}
+
+func allureLinks(links []reporting.Link) []allureLink {
+	if len(links) == 0 {
+		return nil
+	}
+
+	result := make([]allureLink, len(links))
+	for i, link := range links {
+		result[i] = allureLink{Name: link.Name, URL: link.URL, Type: link.Type}
+	}
+
+	return result
 }
 
 func (ar *AllureReporter) persistAttachments(attachments []reporting.Attachment) []allureAttachment {

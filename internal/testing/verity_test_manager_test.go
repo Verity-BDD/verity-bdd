@@ -83,6 +83,39 @@ func TestNewVerityTest_ConfiguredByScene(t *testing.T) {
 	test.Shutdown()
 }
 
+func TestSceneMetadataIsCopiedIntoTestResult(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	mockReporter := reportingMocks.NewMockReporter(ctrl)
+	mockTestContext := mocks.NewMockTestContext(ctrl)
+	links := []reporting.Link{{Name: "Requirement 42", URL: "https://requirements.example/42", Type: "requirement"}}
+
+	mockTestContext.EXPECT().Helper()
+	mockTestContext.EXPECT().Name().Return("MetadataTest")
+	mockTestContext.EXPECT().Cleanup(gomock.Any())
+	mockTestContext.EXPECT().Failed().Return(false)
+	mockReporter.EXPECT().OnTestStart("MetadataTest")
+	mockReporter.EXPECT().OnTestFinish(gomock.Any()).Do(func(result reporting.TestResult) {
+		provider, ok := result.(reporting.TestMetadataProvider)
+		require.True(t, ok)
+		metadata := provider.Metadata()
+		require.Equal(t, "Verifies the requirement", metadata.Description)
+		require.Equal(t, []reporting.Link{{Name: "Requirement 42", URL: "https://requirements.example/42", Type: "requirement"}}, metadata.Links)
+
+		metadata.Links[0].Name = "mutated result"
+		require.Equal(t, "Requirement 42", provider.Metadata().Links[0].Name)
+	})
+
+	test := NewVerityTest(mockTestContext, Scene{
+		Reporter:    mockReporter,
+		Description: "Verifies the requirement",
+		Links:       links,
+	})
+	links[0].Name = "mutated scene"
+
+	test.Shutdown()
+}
+
 func TestSceneDefaultAbilities_AreIsolatedPerActor(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

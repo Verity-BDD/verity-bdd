@@ -90,6 +90,24 @@ func TestWithAllure(t *testing.T) {
 
 The reporter writes `*-result.json` files, nested step data, and any attachments actually provided by callbacks. With the current built-in execution path, this means test-level notes can be persisted, while normal step-level attachments are empty.
 
+To associate a test with the requirement or ticket it verifies, set `Scene.Description` and `Scene.Links`. These values are optional: zero values preserve the existing reporter output. Each link is written to Allure as `name`, `url`, and `type`; use the link type understood by your Allure tooling (for example, `requirement`, `issue`, or `tms`).
+
+```go
+test := verity.NewVerityTest(t, verity.Scene{
+    Reporter: reporter,
+    Description: "Verifies that a blocked customer cannot submit a payment",
+    Links: []verity.Link{
+        {
+            Name: "Payment policy 4.2",
+            URL:  "https://requirements.example/payment-policy#4.2",
+            Type: "requirement",
+        },
+    },
+})
+```
+
+Custom reporters remain source-compatible because `TestResult` is unchanged. A reporter that needs the optional metadata can type-assert `verity_reporting.TestMetadataProvider` and call `Metadata()`.
+
 View results with an installed Allure CLI:
 
 ```bash

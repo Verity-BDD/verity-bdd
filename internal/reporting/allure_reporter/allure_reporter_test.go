@@ -20,6 +20,15 @@ type stubResult struct {
 	attachments []reporting.Attachment
 }
 
+type metadataResult struct {
+	stubResult
+	metadata reporting.TestMetadata
+}
+
+func (mr *metadataResult) Metadata() reporting.TestMetadata {
+	return mr.metadata
+}
+
 func (sr *stubResult) Name() string {
 	return sr.name
 }
@@ -54,6 +63,28 @@ func TestAllureReporter_WritesResultFile(t *testing.T) {
 	require.Equal(t, "passed", result.Status)
 	require.NotEmpty(t, result.UUID)
 	require.Greater(t, result.Stop, result.Start)
+}
+
+func TestAllureReporter_WritesTestMetadata(t *testing.T) {
+	t.Parallel()
+
+	resultsDir := t.TempDir()
+	r := NewAllureReporterWithDir(resultsDir)
+
+	r.OnTestStart("RequirementTest")
+	r.OnTestFinish(&metadataResult{
+		stubResult: stubResult{name: "RequirementTest", status: reporting.StatusPassed, duration: 0.01},
+		metadata: reporting.TestMetadata{
+			Description: "Verifies the requirement",
+			Links: []reporting.Link{
+				{Name: "Requirement 42", URL: "https://requirements.example/42", Type: "requirement"},
+			},
+		},
+	})
+
+	result := readSingleResultFile(t, resultsDir)
+	require.Equal(t, "Verifies the requirement", result.Description)
+	require.Equal(t, []expectedLink{{Name: "Requirement 42", URL: "https://requirements.example/42", Type: "requirement"}}, result.Links)
 }
 
 func TestAllureReporter_MapsStatus(t *testing.T) {
@@ -237,12 +268,20 @@ func TestAllureReporter_WritesStepAttachments(t *testing.T) {
 type expectedResultFile struct {
 	UUID          string               `json:"uuid"`
 	Name          string               `json:"name"`
+	Description   string               `json:"description,omitempty"`
 	Status        string               `json:"status"`
 	StatusDetails *expectedStatus      `json:"statusDetails,omitempty"`
 	Start         int64                `json:"start"`
 	Stop          int64                `json:"stop"`
 	Steps         []expectedStep       `json:"steps,omitempty"`
 	Attachments   []expectedAttachment `json:"attachments,omitempty"`
+	Links         []expectedLink       `json:"links,omitempty"`
+}
+
+type expectedLink struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	Type string `json:"type"`
 }
 
 type expectedStatus struct {
