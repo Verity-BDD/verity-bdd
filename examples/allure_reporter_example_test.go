@@ -21,8 +21,12 @@ func TestAllureReporterExample_GeneratesReportFiles(t *testing.T) {
 	reporter := allure_reporter.NewAllureReporterWithDir(resultsDir)
 
 	test := verity.NewVerityTest(t, verity.Scene{
-		Context:  context.Background(),
-		Reporter: reporter,
+		Context:     context.Background(),
+		Reporter:    reporter,
+		Description: "Demonstrates Allure requirement metadata",
+		Links: []verity.Link{
+			{Name: "Example requirement", URL: "https://requirements.example/allure", Type: "requirement"},
+		},
 	})
 
 	actor := test.ActorCalled("Sam").WhoCan(take_notes.UsingEmptyNotepad())
@@ -56,6 +60,12 @@ func TestAllureReporterExample_GeneratesReportFiles(t *testing.T) {
 
 	require.Equal(t, "TestAllureReporterExample_GeneratesReportFiles", result["name"])
 	require.Equal(t, "passed", result["status"])
+	require.Equal(t, "Demonstrates Allure requirement metadata", result["description"])
+
+	links, ok := result["links"].([]any)
+	require.True(t, ok)
+	require.Len(t, links, 1)
+	require.Equal(t, "https://requirements.example/allure", links[0].(map[string]any)["url"])
 
 	steps, ok := result["steps"].([]any)
 	require.True(t, ok)

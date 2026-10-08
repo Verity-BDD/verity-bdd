@@ -37,6 +37,25 @@ type Attachment struct {
 	Content     []byte
 }
 
+// Link identifies a requirement, ticket, or other related resource.
+type Link struct {
+	Name string
+	URL  string
+	Type string
+}
+
+// TestMetadata is optional descriptive context for a test result.
+type TestMetadata struct {
+	Description string
+	Links       []Link
+}
+
+// TestMetadataProvider is implemented by test results that carry metadata.
+// Reporters can type-assert this interface without changing the TestResult contract.
+type TestMetadataProvider interface {
+	Metadata() TestMetadata
+}
+
 // Status represents the status of a test or step
 type Status int
 

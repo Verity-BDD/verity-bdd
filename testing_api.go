@@ -16,6 +16,9 @@ type DefaultAbilityFactory = internaltesting.DefaultAbilityFactory
 // Scene configures VerityTest runtime behavior.
 type Scene = internaltesting.Scene
 
+// Link identifies a requirement, ticket, or other related resource.
+type Link = reporting.Link
+
 // VerityTest manages the lifecycle of test actors and provides the TestContext API.
 // This interface serves as the main entry point for using the simplified testing approach.
 //
