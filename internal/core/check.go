@@ -19,13 +19,15 @@ type check struct {
 }
 
 func (c *check) AndIfSo(activities ...Activity) ConditionalCheck {
-	c.ifSo = activities
-	return c
+	next := *c
+	next.ifSo = append([]Activity(nil), activities...)
+	return &next
 }
 
 func (c *check) Otherwise(activities ...Activity) ConditionalCheck {
-	c.otherwise = activities
-	return c
+	next := *c
+	next.otherwise = append([]Activity(nil), activities...)
+	return &next
 }
 
 func (c *check) Description() string {
