@@ -804,16 +804,32 @@ func TestFactTeardownErrorsContinueAndFailReportedResult(t *testing.T) {
 	testContext.EXPECT().Helper()
 	testContext.EXPECT().Name().Return("FactTeardownErrors")
 	testContext.EXPECT().Cleanup(gomock.Any())
+	reporter.EXPECT().OnTestStart("FactTeardownErrors")
 	gomock.InOrder(
+		reporter.EXPECT().OnStepStart("Sam has first"),
+		reporter.EXPECT().OnStepFinish(gomock.Any()),
+		reporter.EXPECT().OnStepStart("Sam has middle"),
+		reporter.EXPECT().OnStepFinish(gomock.Any()),
+		reporter.EXPECT().OnStepStart("Sam has last"),
+		reporter.EXPECT().OnStepFinish(gomock.Any()),
+		reporter.EXPECT().OnStepStart("Sam tears down last"),
+		reporter.EXPECT().OnStepFinish(gomock.Any()).Do(func(result reporting.TestResult) {
+			require.EqualError(t, result.Error(), "last teardown failed")
+		}),
 		testContext.EXPECT().Errorf("Fact %q teardown failed for actor %q: %v", "last", "Sam", lastErr).Do(func(string, ...any) { failed = true }),
+		reporter.EXPECT().OnStepStart("Sam tears down middle"),
+		reporter.EXPECT().OnStepFinish(gomock.Any()),
+		reporter.EXPECT().OnStepStart("Sam tears down first"),
+		reporter.EXPECT().OnStepFinish(gomock.Any()).Do(func(result reporting.TestResult) {
+			require.EqualError(t, result.Error(), "first teardown failed")
+		}),
 		testContext.EXPECT().Errorf("Fact %q teardown failed for actor %q: %v", "first", "Sam", firstErr).Do(func(string, ...any) { failed = true }),
 		testContext.EXPECT().Failed().DoAndReturn(func() bool { return failed }),
+		reporter.EXPECT().OnTestFinish(gomock.Any()).Do(func(result reporting.TestResult) {
+			require.Equal(t, reporting.StatusFailed, result.Status())
+			require.EqualError(t, result.Error(), "test failed")
+		}),
 	)
-	reporter.EXPECT().OnTestStart("FactTeardownErrors")
-	reporter.EXPECT().OnTestFinish(gomock.Any()).Do(func(result reporting.TestResult) {
-		require.Equal(t, reporting.StatusFailed, result.Status())
-		require.EqualError(t, result.Error(), "test failed")
-	})
 
 	test := NewVerityTest(testContext, Scene{Reporter: reporter})
 	actor := test.ActorCalled("Sam")

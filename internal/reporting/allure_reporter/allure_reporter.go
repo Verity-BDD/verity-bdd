@@ -53,12 +53,13 @@ type allureStatus struct {
 }
 
 type allureStepResult struct {
-	Name        string             `json:"name"`
-	Status      string             `json:"status"`
-	Start       int64              `json:"start"`
-	Stop        int64              `json:"stop"`
-	Steps       []allureStepResult `json:"steps,omitempty"`
-	Attachments []allureAttachment `json:"attachments,omitempty"`
+	Name          string             `json:"name"`
+	Status        string             `json:"status"`
+	StatusDetails *allureStatus      `json:"statusDetails,omitempty"`
+	Start         int64              `json:"start"`
+	Stop          int64              `json:"stop"`
+	Steps         []allureStepResult `json:"steps,omitempty"`
+	Attachments   []allureAttachment `json:"attachments,omitempty"`
 }
 
 type allureAttachment struct {
@@ -141,12 +142,13 @@ func (ar *AllureReporter) OnStepFinish(stepResult reporting.TestResult) {
 
 	attachments := ar.persistAttachments(stepResult.Attachments())
 	step := allureStepResult{
-		Name:        name,
-		Status:      mapStatus(stepResult.Status()),
-		Start:       startMs,
-		Stop:        stopMs,
-		Steps:       finished.children,
-		Attachments: append(finished.attachments, attachments...),
+		Name:          name,
+		Status:        mapStatus(stepResult.Status()),
+		StatusDetails: statusDetails(stepResult.Error()),
+		Start:         startMs,
+		Stop:          stopMs,
+		Steps:         finished.children,
+		Attachments:   append(finished.attachments, attachments...),
 	}
 
 	if len(ar.current.openSteps) == 0 {
@@ -174,16 +176,11 @@ func (ar *AllureReporter) OnTestFinish(result reporting.TestResult) {
 		ar.current.name = result.Name()
 	}
 
-	statusDetails := (*allureStatus)(nil)
-	if result.Error() != nil {
-		statusDetails = &allureStatus{Message: result.Error().Error()}
-	}
-
 	out := allureResult{
 		UUID:          ar.current.uuid,
 		Name:          ar.current.name,
 		Status:        mapStatus(result.Status()),
-		StatusDetails: statusDetails,
+		StatusDetails: statusDetails(result.Error()),
 		Start:         ar.current.startMs,
 		Stop:          endTime(ar.current.startMs, result.Duration()),
 		Steps:         ar.current.steps,
@@ -249,6 +246,14 @@ func mapStatus(status reporting.Status) string {
 	default:
 		return "passed"
 	}
+}
+
+func statusDetails(err error) *allureStatus {
+	if err == nil {
+		return nil
+	}
+
+	return &allureStatus{Message: err.Error()}
 }
 
 func mustUUID() string {
