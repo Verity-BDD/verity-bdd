@@ -169,6 +169,31 @@ func TestAllureReporter_RecordsNestedSteps(t *testing.T) {
 	require.Equal(t, "passed", result.Steps[0].Steps[0].Status)
 }
 
+func TestAllureReporter_WritesNestedFailedStepStatusDetails(t *testing.T) {
+	t.Parallel()
+
+	resultsDir := t.TempDir()
+	r := NewAllureReporterWithDir(resultsDir)
+
+	r.OnTestStart("NestedFailureTest")
+	r.OnStepStart("creates an order")
+	r.OnStepStart("opens order page")
+	r.OnStepFinish(&stubResult{
+		name:     "opens order page",
+		status:   reporting.StatusFailed,
+		duration: 0.01,
+		err:      errors.New("boom"),
+	})
+	r.OnStepFinish(&stubResult{name: "creates an order", status: reporting.StatusFailed, duration: 0.02})
+	r.OnTestFinish(&stubResult{name: "NestedFailureTest", status: reporting.StatusFailed, duration: 0.03})
+
+	result := readSingleResultFile(t, resultsDir)
+	failedStep := result.Steps[0].Steps[0]
+	require.Equal(t, "failed", failedStep.Status)
+	require.NotNil(t, failedStep.StatusDetails)
+	require.Equal(t, "boom", failedStep.StatusDetails.Message)
+}
+
 func TestAllureReporter_RecordsNestedStepsAtMultipleLevels(t *testing.T) {
 	t.Parallel()
 
@@ -274,12 +299,13 @@ type expectedStatus struct {
 }
 
 type expectedStep struct {
-	Name        string               `json:"name"`
-	Status      string               `json:"status"`
-	Start       int64                `json:"start"`
-	Stop        int64                `json:"stop"`
-	Steps       []expectedStep       `json:"steps,omitempty"`
-	Attachments []expectedAttachment `json:"attachments,omitempty"`
+	Name          string               `json:"name"`
+	Status        string               `json:"status"`
+	StatusDetails *expectedStatus      `json:"statusDetails,omitempty"`
+	Start         int64                `json:"start"`
+	Stop          int64                `json:"stop"`
+	Steps         []expectedStep       `json:"steps,omitempty"`
+	Attachments   []expectedAttachment `json:"attachments,omitempty"`
 }
 
 type expectedAttachment struct {

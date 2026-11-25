@@ -90,7 +90,10 @@ func (ta *testActor) Has(facts ...core.Fact) {
 	}
 
 	for _, fact := range facts {
-		if err := fact.Setup(ta.ctx, ta); err != nil {
+		err := ta.trackFact("#actor has "+fact.Description(), func() error {
+			return fact.Setup(ta.ctx, ta)
+		})
+		if err != nil {
 			ta.testContext.Errorf("Fact %q setup failed for actor %q: %v", fact.Description(), ta.name, err)
 			ta.testContext.FailNow()
 			return
@@ -108,10 +111,27 @@ func (ta *testActor) teardownFacts() {
 
 	for i := len(facts) - 1; i >= 0; i-- {
 		fact := facts[i]
-		if err := fact.Teardown(ta.ctx, ta); err != nil {
+		err := ta.trackFact("#actor tears down "+fact.Description(), func() error {
+			return fact.Teardown(ta.ctx, ta)
+		})
+		if err != nil {
 			ta.testContext.Errorf("Fact %q teardown failed for actor %q: %v", fact.Description(), ta.name, err)
 		}
 	}
+}
+
+func (ta *testActor) trackFact(description string, operation func() error) error {
+	var tracker *reporting.ActivityTracker
+	if ta.reporter != nil {
+		tracker = reporting.NewActivityTrackerWithActor(ta.reporter.GetReporter(), description, ta.name)
+		tracker.Start()
+	}
+
+	err := operation()
+	if tracker != nil {
+		tracker.Finish(err)
+	}
+	return err
 }
 
 func (ta *testActor) Log(entry reporting.LogEntry) error {
