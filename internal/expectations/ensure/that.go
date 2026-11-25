@@ -18,8 +18,10 @@ type Expectation[T any] interface {
 
 // EnsureActivity represents an assertion that a question's answer meets an expectation
 type EnsureActivity[T any] struct {
-	question    core.Question[T]
-	expectation Expectation[T]
+	question              core.Question[T]
+	expectation           Expectation[T]
+	failureMode           core.FailureMode
+	failureModeConfigured bool
 }
 
 // That creates a new Ensure assertion with the new API
@@ -27,6 +29,7 @@ func That[T any](question core.Question[T], expectation Expectation[T]) *EnsureA
 	return &EnsureActivity[T]{
 		question:    question,
 		expectation: expectation,
+		failureMode: core.NonCritical(),
 	}
 }
 
@@ -55,7 +58,14 @@ func (e *EnsureActivity[T]) PerformAs(ctx context.Context, actor core.Actor) err
 	return nil
 }
 
-// FailureMode returns the failure mode for ensure activities (default: FailFast)
+// WithFailureMode configures how the actor handles a failed assertion.
+func (e *EnsureActivity[T]) WithFailureMode(mode core.FailureMode) *EnsureActivity[T] {
+	e.failureMode = mode
+	e.failureModeConfigured = true
+	return e
+}
+
+// FailureMode returns the failure mode for ensure activities (default: ErrorButContinue)
 func (e *EnsureActivity[T]) FailureMode() core.FailureMode {
-	return core.NonCritical()
+	return e.failureMode
 }

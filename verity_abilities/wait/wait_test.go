@@ -110,3 +110,15 @@ func TestPublicUntil_ChainedForAndCheckingEvery(t *testing.T) {
 		t.Fatal("expected timeout error, got nil")
 	}
 }
+
+func TestPublicUntil_WithFailureModeUsesConfiguredMode(t *testing.T) {
+	t.Parallel()
+	q := &staticQuestion[string]{value: "not ready"}
+
+	activity := wait.Until(q, verity_expectations.Equals("ready")).
+		WithFailureMode(core.NonCritical())
+
+	if got := activity.FailureMode(); got != core.ErrorButContinue {
+		t.Fatalf("expected ErrorButContinue, got %v", got)
+	}
+}

@@ -180,6 +180,8 @@ ensure.That(mapQuestion, expectations.ContainsKey("id"))
 
 Use `expectations.Satisfies` for custom validation. Dynamic factories such as `EqualsAnswerTo`, `ContainsSubstringAnswerTo`, `ContainsKeyAnswerTo`, `ArrayLengthEqualsAnswerTo`, the numeric `*AnswerTo` variants, and `SatisfiesAnswer` can evaluate another question or use the current context and actor.
 
+Use `ensure.That(...).WithFailureMode(verity.NonCritical())` to record a failed assertion and continue with later activities, or `verity.Optional()` to log and continue. The same configuration is available on `wait.Until(...)`; it can be combined with `For` and `CheckingEvery`. Both APIs retain their existing defaults unless configured.
+
 `ensure.That(...).After(duration)` delays once before evaluating. It does **not** poll. For polling, use the wait ability:
 
 ```go

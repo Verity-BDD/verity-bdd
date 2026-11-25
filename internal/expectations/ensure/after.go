@@ -10,10 +10,16 @@ import (
 
 // After creates a timeout for Ensure assertion with the new API
 func (e *EnsureActivity[T]) After(duration time.Duration) core.Activity {
+	failureMode := core.FailFast
+	if e.failureModeConfigured {
+		failureMode = e.failureMode
+	}
+
 	return &AfterActivity[T]{
 		duration:    duration,
 		question:    e.question,
 		expectation: e.expectation,
+		failureMode: failureMode,
 	}
 }
 
@@ -21,6 +27,7 @@ type AfterActivity[T any] struct {
 	duration    time.Duration
 	question    core.Question[T]
 	expectation Expectation[T]
+	failureMode core.FailureMode
 }
 
 func (e *AfterActivity[T]) Description() string {
@@ -29,7 +36,7 @@ func (e *AfterActivity[T]) Description() string {
 }
 
 func (e *AfterActivity[T]) FailureMode() core.FailureMode {
-	return core.FailFast
+	return e.failureMode
 }
 
 func (e *AfterActivity[T]) PerformAs(ctx context.Context, actor core.Actor) error {
