@@ -24,4 +24,11 @@ func TestRootAPIContractCompiles(t *testing.T) {
 	test := verity.NewVerityTest(t, verity.Scene{})
 	var actors []verity.Actor = test.Actors() //nolint:staticcheck // Explicitly verifies the public return type.
 	_ = actors
+
+	_ = verity.Scene{
+		Description: "Validates a requirement",
+		Links: []verity.Link{
+			{Name: "Requirement 42", URL: "https://requirements.example/42", Type: "requirement"},
+		},
+	}
 }
