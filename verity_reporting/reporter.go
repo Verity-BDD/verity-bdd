@@ -8,6 +8,9 @@ import internalreporting "github.com/verity-bdd/verity-bdd/internal/reporting"
 // Reporter handles test execution reporting.
 type Reporter = internalreporting.Reporter
 
+// LogEntry contains the actor name and ordered values emitted by a Log interaction.
+type LogEntry = internalreporting.LogEntry
+
 // TestResult represents the result passed to a test or step callback. Duration
 // is measured in seconds. The contract supports attachments, although normal
 // actor execution currently supplies none to step-finish callbacks.

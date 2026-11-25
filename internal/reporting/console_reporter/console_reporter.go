@@ -40,6 +40,11 @@ func (cr *ConsoleReporter) SetOutput(w io.Writer) {
 	cr.output = w
 }
 
+// OnLog renders a Log entry at the current nesting level.
+func (cr *ConsoleReporter) OnLog(entry reporting.LogEntry) {
+	cr.writeLine("%sℹ️ %s: %s", cr.getIndent(), entry.ActorName, strings.Join(entry.Values, " "))
+}
+
 // OnTestStart is called when a test begins
 func (cr *ConsoleReporter) OnTestStart(testName string) {
 	cr.mutex.Lock()

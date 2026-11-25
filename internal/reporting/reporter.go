@@ -2,8 +2,19 @@ package reporting
 
 import "io"
 
+// LogEntry is data emitted by a Log interaction.
+type LogEntry struct {
+	ActorName string
+	Values    []string
+}
+
 // Reporter handles test execution reporting
+//go:generate go run go.uber.org/mock/mockgen@latest -source=reporter.go -destination=mocks/mock_reporter.go -package=mocks
+
 type Reporter interface {
+	// OnLog is called when an actor emits a Log interaction.
+	OnLog(entry LogEntry)
+
 	// OnTestStart is called when a test begins
 	OnTestStart(testName string)
 
