@@ -405,6 +405,14 @@ func TaskWhere(description string, activities ...Activity) Task {
 	return internalcore.TaskWhere(description, activities...)
 }
 
+// ConditionalCheck selects activities after evaluating a boolean question.
+type ConditionalCheck = internalcore.ConditionalCheck
+
+// CheckWhether creates a conditional activity that evaluates question for its actor.
+func CheckWhether(question Question[bool]) ConditionalCheck {
+	return internalcore.CheckWhether(question)
+}
+
 // Critical returns a failure mode that stops execution on failure.
 // This is a semantic function that returns FailFast mode.
 // Use this when you want to explicitly indicate critical operations.
