@@ -170,13 +170,14 @@ Response timing is not implemented. `ResponseTime` and `ResponseTimeQ` currently
 ensure.That(question, expectations.Equals(expected))
 ensure.That(stringQuestion, expectations.ContainsSubstring("text"))
 ensure.That(sliceQuestion, expectations.Includes(item))
+ensure.That(pointerQuestion, expectations.Exist[*User]())
 ensure.That(question, expectations.IsEmpty[T]())
 ensure.That(question, expectations.ArrayLengthEquals[T](5))
 ensure.That(numberQuestion, expectations.IsGreaterThan(10)) // numberQuestion is verity.Question[any]
 ensure.That(mapQuestion, expectations.ContainsKey("id"))
 ```
 
-`Equals` uses deep equality. `IsEmpty` supports strings, slices, arrays, and maps. `ArrayLengthEquals` supports arrays, slices, and strings.
+`Equals` uses deep equality. `Exist[T]` checks that a value of type `T` is not nil (and non-nilable values always pass). `IsEmpty` supports strings, slices, arrays, and maps. `ArrayLengthEquals` supports arrays, slices, and strings.
 
 Use `expectations.Satisfies` for custom validation. Dynamic factories such as `EqualsAnswerTo`, `ContainsSubstringAnswerTo`, `ContainsKeyAnswerTo`, `ArrayLengthEqualsAnswerTo`, the numeric `*AnswerTo` variants, and `SatisfiesAnswer` can evaluate another question or use the current context and actor.
 

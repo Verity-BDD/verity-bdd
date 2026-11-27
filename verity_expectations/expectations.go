@@ -28,6 +28,12 @@ func IsLessThan(expected interface{}) ensure.Expectation[interface{}] {
 	return internalexpectations.IsLessThan(expected)
 }
 
+// Exist checks whether a value is not nil.
+// Non-nilable values always exist.
+func Exist[T any]() ensure.Expectation[T] {
+	return internalexpectations.Exist[T]()
+}
+
 // IsEmpty checks if a value is empty (string, slice, array, or map).
 func IsEmpty[T any]() ensure.Expectation[T] {
 	return internalexpectations.IsEmpty[T]()

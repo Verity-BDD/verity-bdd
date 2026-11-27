@@ -134,6 +134,13 @@ func TestNotExpectationAPIContractCompiles(t *testing.T) {
 	_ = ensure.That(q, ve.Not(ve.ContainsSubstring("xyz")))
 }
 
+func TestExistAPIContractCompiles(t *testing.T) {
+	t.Parallel()
+
+	_ = ensure.That(answerable.ValueOf(0), ve.Exist[int]())
+	_ = ensure.That(answerable.ValueOf((*string)(nil)), ve.Exist[*string]())
+}
+
 func TestAnswerToFactoriesAPIContractCompiles(t *testing.T) {
 	t.Parallel()
 	strQ := answerable.ValueOf("world")
